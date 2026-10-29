@@ -397,6 +397,18 @@
       "photo": "photos/wednesday-mvu2ebar.jpg",
       "order": 31,
       "createdAt": 1793309876292
+    },
+    {
+      "id": "addams-mvu2feme",
+      "name": "Addams",
+      "songName": "The Addams Family",
+      "spotify": "https://open.spotify.com/track/6TZTu1F0gnp8mtzvYZao41",
+      "tags": [
+        "tv"
+      ],
+      "photo": "photos/addams-mvu2fenc.jpg",
+      "order": 32,
+      "createdAt": 1793309927457
     }
   ]
 }
