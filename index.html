@@ -176,8 +176,8 @@ img { max-width: 100%; }
     <div class="chips" id="chips" role="group" aria-label="Filter by tag"></div>
     <label class="sortbox" for="sortSel">Sort
       <select id="sortSel">
-        <option value="custom">My order</option>
         <option value="name">Name A–Z</option>
+        <option value="custom">My order</option>
         <option value="name-desc">Name Z–A</option>
         <option value="newest">Newest first</option>
       </select>
@@ -284,15 +284,15 @@ img { max-width: 100%; }
 <script>
 const SPOTIFY_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="currentColor"/><path d="M6.5 9.3c3.8-1.1 8-.8 11.2 1M7 12.4c3.1-.9 6.5-.6 9.2.9M7.5 15.3c2.5-.7 5.2-.5 7.3.7" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>';
 const $ = (id) => document.getElementById(id);
-const state = { canEdit: true, editing: false, items: [], loaded: false, playing: null, editId: null, file: null, tags: new Set(), sort: "custom", q: "", draftTags: [] };
-try { const p = JSON.parse(localStorage.getItem("boardPrefs") || "{}"); if (Array.isArray(p.tags)) state.tags = new Set(p.tags.filter((t) => typeof t === "string")); if (typeof p.sort === "string") state.sort = p.sort; } catch {}
+const state = { canEdit: true, editing: false, items: [], loaded: false, playing: null, editId: null, file: null, tags: new Set(), sort: "name", q: "", draftTags: [] };
+try { const p = JSON.parse(localStorage.getItem("boardPrefs2") || "{}"); if (Array.isArray(p.tags)) state.tags = new Set(p.tags.filter((t) => typeof t === "string")); if (typeof p.sort === "string") state.sort = p.sort; } catch {}
 function cleanTag(t) { return (t || "").replace(/^#+/, "").replace(/\s+/g, " ").trim().toLowerCase().slice(0, 30); }
 function tagsOf(x) {
   const raw = Array.isArray(x.tags) ? x.tags : (x.category ? [x.category] : []);
   return [...new Set(raw.map(cleanTag).filter(Boolean))];
 }
 function allTags() { return [...new Set(state.items.flatMap(tagsOf))].sort((a, b) => a.localeCompare(b)); }
-function savePrefs() { try { localStorage.setItem("boardPrefs", JSON.stringify({ tags: [...state.tags], sort: state.sort })); } catch {} }
+function savePrefs() { try { localStorage.setItem("boardPrefs2", JSON.stringify({ tags: [...state.tags], sort: state.sort })); } catch {} }
 
 function normalizeSpotify(raw) {
   const s = (raw || "").trim();
