@@ -349,6 +349,18 @@
       "photo": "photos/elphaba-mvu1zfah.jpg",
       "order": 27,
       "createdAt": 1793309181850
+    },
+    {
+      "id": "glinda-mvu21whg",
+      "name": "Glinda",
+      "songName": "Popular",
+      "spotify": "https://open.spotify.com/track/3i8fIJNV0yuC4kXT3SkVBZ",
+      "tags": [
+        "movies"
+      ],
+      "photo": "photos/glinda-mvu21whg.jpg",
+      "order": 28,
+      "createdAt": 1793309297236
     }
   ]
 }
