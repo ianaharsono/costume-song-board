@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Costume Song Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gluten:wght@600;800&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one big tap grid of costume photos, like a jukebox wall. Edit mode turns tiles into editable cards. */
+:root {
+  --bg: #fbfaf7;
+  --surface: #ffffff;
+  --ink: #1d1a2b;
+  --muted: #6b6779;
+  --line: #e6e3ec;
+  --accent: #5b3fd6;
+  --accent-ink: #ffffff;
+  --glow: #ffcf3f;
+  --spotify: #1db954;
+  --danger: #c4332f;
+  --display: "Gluten", "Comic Sans MS", "Chalkboard SE", system-ui, sans-serif;
+  --body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --r: 18px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15131d; --surface: #1f1c2a; --ink: #f2f0f7; --muted: #a29eb3; --line: #2f2b3d;
+    --accent: #9d86ff; --accent-ink: #15131d; --glow: #ffd45c; --spotify: #2fd36a; --danger: #ff6b66;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15131d; --surface: #1f1c2a; --ink: #f2f0f7; --muted: #a29eb3; --line: #2f2b3d;
+  --accent: #9d86ff; --accent-ink: #15131d; --glow: #ffd45c; --spotify: #2fd36a; --danger: #ff6b66;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+.wrap { max-width: 1100px; margin: 0 auto; display: grid; gap: 20px; }
+header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+h1 { font-family: var(--display); font-weight: 800; font-size: clamp(30px, 6vw, 44px); line-height: 1; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+h1 span { color: var(--accent); }
+.sub { color: var(--muted); margin: 6px 0 0; font-size: 15px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+button, .btn {
+  font: 600 15px var(--body); border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface);
+  color: var(--ink); padding: 10px 18px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
+}
+button:hover { border-color: var(--accent); }
+button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid var(--glow); outline-offset: 2px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.danger { color: var(--danger); border-color: var(--danger); background: transparent; }
+button[disabled] { opacity: .5; cursor: default; }
+.seg { display: inline-flex; align-items: center; gap: 2px; border: 1.5px solid var(--line); border-radius: 999px; padding: 3px; background: var(--surface); }
+.seglabel { font-size: 13px; color: var(--muted); padding: 0 8px 0 10px; }
+.seg button { border: none; padding: 7px 12px; font-size: 14px; background: transparent; }
+.seg button[aria-pressed="true"] { background: var(--spotify); color: #0b1d10; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+#q { flex: 1 1 100%; font: 16px var(--body); padding: 11px 16px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); min-width: 0; }
+.noresults { grid-column: 1 / -1; color: var(--muted); padding: 24px 0; text-align: center; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.chips button { padding: 7px 14px; font-size: 14px; }
+.chips button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.chips .count { opacity: .7; font-weight: 500; }
+.sortbox { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); font-weight: 600; }
+select { font: 600 14px var(--body); padding: 8px 12px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); }
+.tiletags { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 12px; font-weight: 700; color: var(--accent); margin-top: 2px; order: 3; }
+.label { display: flex !important; flex-direction: column; }
+.tagbox { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 8px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--bg); }
+.tagbox:focus-within { outline: 3px solid var(--glow); outline-offset: 2px; }
+.tagbox input { border: none !important; background: transparent !important; padding: 6px 4px !important; flex: 1 1 120px; width: auto !important; outline: none !important; }
+.tagchips { display: contents; }
+.tagchip { display: inline-flex; align-items: center; gap: 4px; background: var(--accent); color: var(--accent-ink); border-radius: 999px; padding: 4px 4px 4px 10px; font-size: 14px; font-weight: 600; }
+.tagchip button { border: none; background: transparent; color: inherit; padding: 0 6px; font-size: 16px; line-height: 1; }
+.tagsuggest { display: flex; flex-wrap: wrap; gap: 6px; }
+.tagsuggest:empty { display: none; }
+.tagsuggest button { padding: 5px 12px; font-size: 13px; }
+.toggle[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 16px; }
+@media (max-width: 460px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }
+.tile {
+  position: relative; display: grid; text-decoration: none; color: inherit; border-radius: var(--r);
+  background: var(--surface); border: 1.5px solid var(--line); overflow: hidden; cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease; -webkit-tap-highlight-color: transparent; text-align: left; padding: 0;
+  font: inherit;
+}
+.tile:hover { transform: translateY(-2px); }
+.tile:active { transform: scale(.97); }
+.tile.playing { border-color: var(--glow); box-shadow: 0 0 0 4px var(--glow); }
+.photo { aspect-ratio: 1 / 1; width: 100%; max-width: 100%; object-fit: cover; display: block; background: var(--line); }
+.nophoto { aspect-ratio: 1/1; display: grid; place-items: center; background: var(--line); color: var(--muted); font-family: var(--display); font-size: 40px; }
+.label { padding: 10px 12px 12px; display: grid; gap: 2px; min-width: 0; }
+.name { font-family: var(--display); font-weight: 800; font-size: 20px; line-height: 1.1; overflow-wrap: anywhere; }
+.song { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; min-width: 0; }
+.song svg { flex: none; color: var(--spotify); }
+.song span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.badge { position: absolute; top: 10px; left: 10px; background: var(--glow); color: #1d1a2b; font: 700 12px var(--body); letter-spacing: .06em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; }
+.editbar { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; }
+.editbar button { padding: 6px 10px; font-size: 13px; background: var(--surface); }
+.addtile { border-style: dashed; place-items: center; min-height: 200px; color: var(--accent); font-weight: 700; gap: 6px; align-content: center; justify-items: center; }
+.addtile .plus { font-family: var(--display); font-size: 48px; line-height: 1; }
+
+.empty { border: 1.5px dashed var(--line); border-radius: var(--r); padding: 32px 20px; text-align: center; display: grid; gap: 10px; justify-items: center; }
+.empty h2 { font-family: var(--display); margin: 0; font-size: 26px; }
+.empty p { margin: 0; color: var(--muted); max-width: 46ch; }
+.note { color: var(--muted); font-size: 14px; max-width: 70ch; }
+
+dialog { border: none; border-radius: 22px; padding: 0; width: min(440px, calc(100% - 32px)); background: var(--surface); color: var(--ink); }
+dialog::backdrop { background: rgba(15, 12, 25, .55); }
+form.sheet { display: grid; gap: 14px; padding: 22px; }
+form.sheet h2 { font-family: var(--display); margin: 0; font-size: 26px; }
+.field { display: grid; gap: 6px; }
+.field label { font-weight: 600; font-size: 14px; }
+.field small { color: var(--muted); font-size: 13px; }
+input[type=text], input[type=url] { font: 16px var(--body); padding: 11px 12px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--ink); width: 100%; }
+.pick { display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: center; }
+.pick .preview { width: 96px; height: 96px; border-radius: 14px; object-fit: cover; background: var(--line); }
+.err { color: var(--danger); font-size: 14px; min-height: 1em; margin: 0; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: space-between; align-items: center; }
+.row .right { display: flex; gap: 8px; margin-left: auto; }
+.confirm { background: var(--bg); border-radius: 12px; padding: 12px; display: grid; gap: 8px; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-weight: 600; font-size: 14px; }
+@media (prefers-reduced-motion: reduce) { .tile { transition: none; } .tile:hover, .tile:active { transform: none; } }
+</style>
+<style>
+html { color-scheme: light; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+[hidden] { display: none !important; }
+img { max-width: 100%; }
+.nophoto { font-size: 72px; color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Costume <span>Song Board</span></h1>
+      <p class="sub">Tap a character to start their song in Spotify.</p>
+    </div>
+    <div class="actions">
+      <div class="seg" id="openMode" role="group" aria-label="Open songs in">
+        <span class="seglabel">Open in</span>
+        <button type="button" data-mode="app" aria-pressed="false">Spotify app</button>
+        <button type="button" data-mode="web" aria-pressed="false">Web player</button>
+      </div>
+    </div>
+  </header>
+  <div class="toolbar" id="toolbar" hidden>
+    <input type="search" id="q" placeholder="Search characters, songs or tags" aria-label="Search characters, songs or tags" autocomplete="off">
+    <div class="chips" id="chips" role="group" aria-label="Filter by tag"></div>
+    <label class="sortbox" for="sortSel">Sort
+      <select id="sortSel">
+        <option value="custom">My order</option>
+        <option value="name">Name A–Z</option>
+        <option value="name-desc">Name Z–A</option>
+        <option value="newest">Newest first</option>
+      </select>
+    </label>
+  </div>
+  <div id="status" class="note" hidden></div>
+  <div id="grid" class="grid" aria-live="polite"></div>
+  <p class="note">On a phone or tablet, "Spotify app" opens each song straight in the Spotify app on your logged-in account. If tapping does nothing, switch to "Web player". On a computer, use "Web player".</p>
+</div>
+<script>
+const SPOTIFY_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="currentColor"/><path d="M6.5 9.3c3.8-1.1 8-.8 11.2 1M7 12.4c3.1-.9 6.5-.6 9.2.9M7.5 15.3c2.5-.7 5.2-.5 7.3.7" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>';
+const $ = (id) => document.getElementById(id);
+const state = { items: [], playing: null, tags: new Set(), sort: "custom", q: "" };
+try { const p = JSON.parse(localStorage.getItem("boardPrefs") || "{}"); if (Array.isArray(p.tags)) state.tags = new Set(p.tags); if (typeof p.sort === "string") state.sort = p.sort; } catch {}
+function savePrefs() { try { localStorage.setItem("boardPrefs", JSON.stringify({ tags: [...state.tags], sort: state.sort })); } catch {} }
+const cleanTag = (t) => (t || "").replace(/^#+/, "").replace(/\s+/g, " ").trim().toLowerCase();
+const tagsOf = (x) => [...new Set((x.tags || []).map(cleanTag).filter(Boolean))];
+const allTags = () => [...new Set(state.items.flatMap(tagsOf))].sort((a, b) => a.localeCompare(b));
+const kindOf = (url) => { const m = /open\.spotify\.com\/(\w+)\//.exec(url || ""); return m ? m[1] : "song"; };
+const IS_PHONE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+let openMode = IS_PHONE ? "app" : "web";
+try { const s = localStorage.getItem("openMode"); if (s === "app" || s === "web") openMode = s; } catch {}
+function linkFor(url) {
+  if (openMode !== "app") return url;
+  const m = /open\.spotify\.com\/(track|album|playlist|episode|artist)\/([A-Za-z0-9]+)/.exec(url || "");
+  return m ? `spotify:${m[1]}:${m[2]}` : url;
+}
+function setOpenMode(mode) {
+  openMode = mode; try { localStorage.setItem("openMode", mode); } catch {}
+  document.querySelectorAll("#openMode button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
+  render();
+}
+function render() {
+  const g = $("grid"); g.textContent = "";
+  const all = state.items;
+  $("toolbar").hidden = all.length === 0;
+  const tags = allTags();
+  state.tags = new Set([...state.tags].filter((t) => tags.includes(t)));
+  const chips = $("chips"); chips.textContent = ""; chips.hidden = tags.length === 0;
+  const mk = (label, n, pressed, onClick) => {
+    const b = document.createElement("button"); b.type = "button"; b.setAttribute("aria-pressed", String(pressed));
+    b.append(label + " "); const c = document.createElement("span"); c.className = "count"; c.textContent = n; b.append(c);
+    b.addEventListener("click", onClick); chips.append(b);
+  };
+  mk("All", all.length, state.tags.size === 0, () => { state.tags.clear(); savePrefs(); render(); });
+  tags.forEach((t) => mk("#" + t, all.filter((x) => tagsOf(x).includes(t)).length, state.tags.has(t), () => { state.tags.has(t) ? state.tags.delete(t) : state.tags.add(t); savePrefs(); render(); }));
+  const q = state.q.trim().toLowerCase().replace(/^#/, "");
+  const items = all.filter((x) => {
+    const xt = tagsOf(x);
+    if (state.tags.size && !xt.some((t) => state.tags.has(t))) return false;
+    return !q || [x.name, x.songName, ...xt].some((v) => (v || "").toLowerCase().includes(q));
+  });
+  const byName = (a, b) => (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
+  const sorters = { custom: (a, b) => (a.order ?? 0) - (b.order ?? 0), name: byName, "name-desc": (a, b) => byName(b, a), newest: (a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0) };
+  items.sort(sorters[state.sort] || sorters.custom);
+  if (all.length && !items.length) { const p = document.createElement("p"); p.className = "noresults"; p.textContent = q ? `No characters match "${state.q.trim()}".` : "No characters have these tags."; g.append(p); }
+  items.forEach((it) => {
+    const el = document.createElement("a");
+    el.className = "tile" + (state.playing === it.name ? " playing" : "");
+    el.href = linkFor(it.spotify); el.target = "_blank"; el.rel = "noopener";
+    el.setAttribute("aria-label", `Play ${it.name}'s song`);
+    el.addEventListener("click", () => { state.playing = it.name; render(); });
+    if (it.photo) { const img = document.createElement("img"); img.className = "photo"; img.alt = it.name; img.src = it.photo; img.loading = "lazy"; el.append(img); }
+    else { const d = document.createElement("div"); d.className = "nophoto"; d.textContent = (it.name || "?").slice(0, 1); el.append(d); }
+    const lab = document.createElement("div"); lab.className = "label";
+    const n = document.createElement("div"); n.className = "name"; n.textContent = it.name;
+    const s = document.createElement("div"); s.className = "song"; s.innerHTML = SPOTIFY_ICON;
+    const sp = document.createElement("span"); sp.textContent = it.songName || ("Spotify " + kindOf(it.spotify)); s.append(sp);
+    const tt = tagsOf(it);
+    if (tt.length) { const tw = document.createElement("div"); tw.className = "tiletags"; tt.forEach((t) => { const x = document.createElement("span"); x.textContent = "#" + t; tw.append(x); }); lab.append(tw); }
+    lab.append(n, s); el.append(lab);
+    if (state.playing === it.name) { const b = document.createElement("div"); b.className = "badge"; b.textContent = "Now playing"; el.append(b); }
+    g.append(el);
+  });
+}
+document.querySelectorAll("#openMode button").forEach((b) => b.addEventListener("click", () => setOpenMode(b.dataset.mode)));
+$("sortSel").value = state.sort;
+$("sortSel").addEventListener("change", (e) => { state.sort = e.target.value; savePrefs(); render(); });
+$("q").addEventListener("input", (e) => { state.q = e.target.value; render(); });
+setOpenMode(openMode);
+fetch("characters.json", { cache: "no-cache" }).then((r) => r.json()).then((d) => { state.items = Array.isArray(d) ? d : (d.characters || []); render(); })
+  .catch(() => { $("status").textContent = "Couldn't load the characters. Reload the page to try again."; $("status").hidden = false; });
+</script>
+</body>
+</html>
