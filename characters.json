@@ -177,6 +177,18 @@
       "photo": "photos/ghost-spider-mvtyej3y.jpg",
       "order": 13,
       "createdAt": 1793303168257
+    },
+    {
+      "id": "witch-mvtykg81",
+      "name": "Witch",
+      "songName": "The Witches are Back",
+      "spotify": "https://open.spotify.com/track/6SWxJnEL4PgRySciwic4N3",
+      "tags": [
+        "classic"
+      ],
+      "photo": "photos/witch-mvtykg81.jpg",
+      "order": 14,
+      "createdAt": 1793303444703
     }
   ]
 }
