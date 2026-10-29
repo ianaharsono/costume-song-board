@@ -121,6 +121,17 @@ form.sheet h2 { font-family: var(--display); margin: 0; font-size: 26px; }
 .field small { color: var(--muted); font-size: 13px; }
 input[type=text], input[type=url] { font: 16px var(--body); padding: 11px 12px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--ink); width: 100%; }
 .pick { display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: center; }
+.pickbtns { display: grid; gap: 8px; justify-items: start; min-width: 0; }
+.pickbtns input { max-width: 100%; }
+.cropwrap { display: grid; gap: 10px; }
+.cropper { position: relative; width: min(100%, 340px); aspect-ratio: 1 / 1; max-width: 100%; justify-self: center; border-radius: 14px; overflow: hidden; background: var(--line); touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.cropper:active { cursor: grabbing; }
+.cropper canvas { width: 100%; height: 100%; display: block; }
+.cropgrid { position: absolute; inset: 0; pointer-events: none; border: 2px solid rgba(255,255,255,.9); border-radius: 14px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.25);
+  background-image: linear-gradient(rgba(255,255,255,.45) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.45) 1px, transparent 1px);
+  background-size: 33.333% 33.333%; background-position: -1px -1px; }
+.zoomrow { display: flex; align-items: center; gap: 10px; width: min(100%, 340px); justify-self: center; color: var(--muted); font-weight: 700; }
+.zoomrow input { flex: 1; accent-color: var(--accent); }
 .pick .preview { width: 96px; height: 96px; border-radius: 14px; object-fit: cover; background: var(--line); }
 .err { color: var(--danger); font-size: 14px; min-height: 1em; margin: 0; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: space-between; align-items: center; }
@@ -189,7 +200,23 @@ img { max-width: 100%; }
       <div class="pick">
         <img class="preview" id="preview" alt="" hidden>
         <div class="nophoto preview" id="previewEmpty" style="font-size:28px;width:96px;height:96px;border-radius:14px">?</div>
-        <input type="file" id="f-photo" accept="image/*">
+        <div class="pickbtns">
+          <input type="file" id="f-photo" accept="image/*">
+          <button type="button" id="recropBtn" hidden>Crop photo</button>
+        </div>
+      </div>
+      <div class="cropwrap" id="cropWrap" hidden>
+        <div class="cropper" id="cropper" aria-label="Drag to move the photo, pinch or use the slider to zoom">
+          <canvas id="cropCanvas"></canvas>
+          <div class="cropgrid" aria-hidden="true"></div>
+        </div>
+        <div class="zoomrow">
+          <span aria-hidden="true">−</span>
+          <input type="range" id="zoom" min="1" max="4" step="0.01" value="1" aria-label="Zoom">
+          <span aria-hidden="true">+</span>
+        </div>
+        <small>Drag to position. Pinch or slide to zoom. The square is exactly what shows on the board.</small>
+        <div class="row"><div class="right"><button type="button" id="cropDone" class="primary">Use this crop</button></div></div>
       </div>
     </div>
     <div class="field">
@@ -395,8 +422,9 @@ function openEditor(it) {
   state.editId = it ? it.id : null; state.file = null;
   $("dlgTitle").textContent = it ? "Edit character" : "Add character";
   $("f-name").value = it?.name || ""; $("f-song").value = it?.spotify || ""; $("f-songname").value = it?.songName || ""; state.draftTags = it ? tagsOf(it) : [...state.tags]; $("f-tag").value = ""; renderDraftTags();
-  $("f-photo").value = "";
+  $("f-photo").value = ""; state.cropped = null; closeCrop();
   setPreview(it?.photo ? photoSrc(it) : null);
+  $("recropBtn").hidden = !it?.photo;
   $("err").textContent = ""; $("delBtn").hidden = !it; $("confirmBox").hidden = true;
   $("dlg").showModal();
 }
@@ -411,6 +439,12 @@ async function shrink(file) {
   return await new Promise((r) => c.toBlob((b) => r(b || file), "image/jpeg", 0.85));
 }
 
+async function exportSquareCenter(file) {
+  const im = await loadImage(URL.createObjectURL(file), false);
+  const side = Math.min(im.naturalWidth, im.naturalHeight), c = document.createElement("canvas"); c.width = OUT; c.height = OUT;
+  c.getContext("2d").drawImage(im, (im.naturalWidth - side) / 2, (im.naturalHeight - side) / 2, side, side, 0, 0, OUT, OUT);
+  return new Promise((r) => c.toBlob((b) => r(b || file), "image/jpeg", 0.88));
+}
 function renderDraftTags() {
   const box = $("tagChips"); box.textContent = "";
   state.draftTags.forEach((t) => {
@@ -438,9 +472,97 @@ $("f-tag").addEventListener("keydown", (e) => {
 $("f-tag").addEventListener("input", (e) => { if (e.target.value.includes(",")) commitTagInput(); else renderDraftTags(); });
 $("f-tag").addEventListener("blur", () => { if (cleanTag($("f-tag").value)) commitTagInput(); });
 $("tagbox").addEventListener("click", (e) => { if (e.target.id === "tagbox") $("f-tag").focus(); });
+// ---- Square crop ----
+const OUT = 1000;
+const crop = { img: null, F: 0, s: 1, min: 1, x: 0, y: 0, pointers: new Map(), pinch: null };
+function loadImage(src, cors) {
+  return new Promise((res, rej) => { const im = new Image(); if (cors) im.crossOrigin = "anonymous"; im.onload = () => res(im); im.onerror = rej; im.src = src; });
+}
+function clampCrop() {
+  const w = crop.img.naturalWidth * crop.s, h = crop.img.naturalHeight * crop.s;
+  crop.x = Math.min(0, Math.max(crop.F - w, crop.x));
+  crop.y = Math.min(0, Math.max(crop.F - h, crop.y));
+}
+function drawCrop() {
+  const c = $("cropCanvas"), dpr = window.devicePixelRatio || 1;
+  const F = $("cropper").clientWidth;
+  if (F && F !== crop.F) { // keep the same framing if the box resized
+    const k = F / (crop.F || F); crop.F = F; crop.min = F / Math.min(crop.img.naturalWidth, crop.img.naturalHeight);
+    crop.s = Math.max(crop.min, crop.s * k); crop.x *= k; crop.y *= k;
+  }
+  c.width = Math.round(crop.F * dpr); c.height = Math.round(crop.F * dpr);
+  clampCrop();
+  const ctx = c.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.imageSmoothingQuality = "high";
+  ctx.clearRect(0, 0, crop.F, crop.F);
+  ctx.drawImage(crop.img, crop.x, crop.y, crop.img.naturalWidth * crop.s, crop.img.naturalHeight * crop.s);
+  $("zoom").value = String(crop.s / crop.min);
+}
+function zoomTo(newS, cx = crop.F / 2, cy = crop.F / 2) {
+  newS = Math.min(crop.min * 4, Math.max(crop.min, newS));
+  const ix = (cx - crop.x) / crop.s, iy = (cy - crop.y) / crop.s;
+  crop.s = newS; crop.x = cx - ix * newS; crop.y = cy - iy * newS;
+  drawCrop();
+}
+async function openCrop(srcs, cors) {
+  crop.img = null;
+  for (const src of [].concat(srcs)) { try { crop.img = await loadImage(src, cors); break; } catch {} }
+  if (!crop.img) { $("err").textContent = "Couldn't open that photo. Try a different one."; return; }
+  $("cropWrap").hidden = false;
+  crop.F = $("cropper").clientWidth || 300;
+  crop.min = crop.F / Math.min(crop.img.naturalWidth, crop.img.naturalHeight);
+  crop.s = crop.min;
+  crop.x = (crop.F - crop.img.naturalWidth * crop.s) / 2;
+  crop.y = (crop.F - crop.img.naturalHeight * crop.s) / 2;
+  drawCrop();
+  $("cropper").scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+function closeCrop() { $("cropWrap").hidden = true; crop.pointers.clear(); crop.pinch = null; }
+function exportCrop() {
+  const c = document.createElement("canvas"); c.width = OUT; c.height = OUT;
+  const k = OUT / crop.F, ctx = c.getContext("2d"); ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(crop.img, crop.x * k, crop.y * k, crop.img.naturalWidth * crop.s * k, crop.img.naturalHeight * crop.s * k);
+  return new Promise((r, j) => c.toBlob((b) => (b ? r(b) : j(new Error("crop"))), "image/jpeg", 0.88));
+}
+const cropper = $("cropper");
+const local = (e) => { const r = cropper.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+cropper.addEventListener("pointerdown", (e) => { cropper.setPointerCapture(e.pointerId); crop.pointers.set(e.pointerId, local(e)); crop.pinch = null; });
+cropper.addEventListener("pointermove", (e) => {
+  if (!crop.pointers.has(e.pointerId) || !crop.img) return;
+  const prev = crop.pointers.get(e.pointerId), now = local(e);
+  crop.pointers.set(e.pointerId, now);
+  if (crop.pointers.size === 1) { crop.x += now.x - prev.x; crop.y += now.y - prev.y; drawCrop(); }
+  else if (crop.pointers.size === 2) {
+    const [a, b] = [...crop.pointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y), mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    if (crop.pinch) { crop.x += mid.x - crop.pinch.mid.x; crop.y += mid.y - crop.pinch.mid.y; zoomTo(crop.s * (d / crop.pinch.d), mid.x, mid.y); }
+    crop.pinch = { d, mid };
+  }
+});
+const endPointer = (e) => { crop.pointers.delete(e.pointerId); crop.pinch = null; };
+cropper.addEventListener("pointerup", endPointer); cropper.addEventListener("pointercancel", endPointer);
+cropper.addEventListener("wheel", (e) => { if (!crop.img) return; e.preventDefault(); const p = local(e); zoomTo(crop.s * Math.exp(-e.deltaY * 0.0015), p.x, p.y); }, { passive: false });
+$("zoom").addEventListener("input", (e) => { if (crop.img) zoomTo(crop.min * Number(e.target.value)); });
+cropper.addEventListener("keydown", (e) => {
+  const step = 10, map = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
+  if (map[e.key]) { e.preventDefault(); crop.x += map[e.key][0]; crop.y += map[e.key][1]; drawCrop(); }
+  else if (e.key === "+" || e.key === "=") zoomTo(crop.s * 1.1); else if (e.key === "-") zoomTo(crop.s / 1.1);
+});
+cropper.tabIndex = 0;
+window.addEventListener("resize", () => { if (!$("cropWrap").hidden && crop.img) drawCrop(); });
+$("cropDone").addEventListener("click", async () => {
+  try { state.cropped = await exportCrop(); }
+  catch { $("err").textContent = "Couldn't crop this photo. Choose it again from your device."; return; }
+  setPreview(URL.createObjectURL(state.cropped)); closeCrop();
+});
+$("recropBtn").addEventListener("click", () => {
+  const it = state.items.find((x) => x.id === state.editId); if (!it?.photo) return;
+  const src = localPhotos[it.photo] || new URL(it.photo, location.href).href;
+  openCrop([src, `https://raw.githubusercontent.com/${REPO}/main/${it.photo}`], true);
+});
 $("f-photo").addEventListener("change", (e) => {
-  const f = e.target.files[0]; state.file = f || null;
-  if (f) setPreview(URL.createObjectURL(f));
+  const f = e.target.files[0]; state.file = f || null; state.cropped = null;
+  if (f) { $("err").textContent = ""; openCrop(URL.createObjectURL(f), false); }
 });
 $("cancelBtn").addEventListener("click", () => $("dlg").close());
 $("delBtn").addEventListener("click", () => { $("confirmBox").hidden = false; });
@@ -467,8 +589,9 @@ $("form").addEventListener("submit", async (e) => {
   try {
     const id = existing?.id || (slug(name) + "-" + Date.now().toString(36));
     let photo = existing?.photo || "";
-    if (state.file) {
-      const blob = await shrink(state.file);
+    if (!$("cropWrap").hidden) state.cropped = await exportCrop();
+    if (state.cropped || state.file) {
+      const blob = state.cropped || await exportSquareCenter(state.file);
       const path = `photos/${slug(name)}-${Date.now().toString(36)}.jpg`;
       await putFile(path, await blobToB64(blob), `Add photo for ${name}`);
       localPhotos[path] = URL.createObjectURL(blob);
