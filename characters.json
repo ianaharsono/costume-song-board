@@ -385,6 +385,18 @@
       "photo": "photos/descendants-mvu2735h.jpg",
       "order": 30,
       "createdAt": 1793309539703
+    },
+    {
+      "id": "wednesday-mvu2eaol",
+      "name": "Wednesday",
+      "songName": "Bloody Mary",
+      "spotify": "https://open.spotify.com/track/11BKm0j4eYoCPPpCONAVwA",
+      "tags": [
+        "tv"
+      ],
+      "photo": "photos/wednesday-mvu2ebar.jpg",
+      "order": 31,
+      "createdAt": 1793309876292
     }
   ]
 }
