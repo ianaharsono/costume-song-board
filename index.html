@@ -260,9 +260,9 @@ img { max-width: 100%; }
   <form class="sheet" id="connectForm" novalidate>
     <h2>Connect GitHub</h2>
     <p class="note" style="margin:0">Changes are saved to your costume-song-board repo, so every phone sees the same board. This needs a GitHub access key, set up once per device.</p>
-    <a class="btn primary ghlink" href="https://github.com/settings/personal-access-tokens/new?name=Costume%20Song%20Board&amp;description=Lets%20the%20Costume%20Song%20Board%20page%20save%20characters&amp;contents=write" target="_blank" rel="noopener">Open GitHub with the key filled in</a>
+    <a class="btn primary ghlink" id="ghLink" href="https://github.com/settings/personal-access-tokens/new?name=Costume%20Song%20Board&amp;description=Lets%20the%20Costume%20Song%20Board%20page%20save%20characters&amp;contents=write" target="_blank" rel="noopener">Open GitHub with the key filled in</a>
     <ol class="note steps">
-      <li>Tap the button above. Name and permission are already set.</li>
+      <li>Tap the button above. Name and permission are already set. If GitHub says the name is taken, add a word to the end of the name.</li>
       <li>Under Repository access, tap <b>Only select repositories</b> and choose <b>costume-song-board</b></li>
       <li>Scroll down, tap <b>Generate token</b>, then copy the key</li>
       <li>Come back to this tab and paste it below</li>
@@ -673,7 +673,14 @@ function photoImg(it) {
   img.addEventListener("error", () => { const raw = `https://raw.githubusercontent.com/${REPO}/main/${it.photo}`; if (img.src !== raw) img.src = raw; }, { once: true });
   return img;
 }
-function openConnect() { $("c-token").value = ""; $("c-err").textContent = ""; $("connectDlg").showModal(); }
+// Give each key a unique name, since GitHub won't create two keys with the same name.
+function ghKeyLink() {
+  const d = new Date(), stamp = `${d.getMonth() + 1}-${d.getDate()} ${String(d.getHours()).padStart(2, "0")}${String(d.getMinutes()).padStart(2, "0")}`;
+  const device = IS_PHONE ? (/iPad/.test(navigator.userAgent) || navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform) ? "iPad" : "phone") : "computer";
+  const p = new URLSearchParams({ name: `Costume Song Board ${device} ${stamp}`, description: "Lets the Costume Song Board page save characters", contents: "write" });
+  return "https://github.com/settings/personal-access-tokens/new?" + p.toString();
+}
+function openConnect() { $("ghLink").href = ghKeyLink(); $("c-token").value = ""; $("c-err").textContent = ""; $("connectDlg").showModal(); }
 $("connectCancel").addEventListener("click", () => $("connectDlg").close());
 $("connectForm").addEventListener("submit", async (e) => {
   e.preventDefault();
