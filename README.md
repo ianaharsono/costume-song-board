@@ -6,7 +6,9 @@ Live page: https://ianaharsono.github.io/costume-song-board/
 
 ## Adding or changing characters
 
-Edit `characters.json`. Each character looks like this:
+On the live page, tap **Edit characters**. The first time on each device it asks you to connect GitHub with an access key (the page walks you through making one). After that you can add, edit, reorder and delete characters, and upload costume photos. Changes save to this repo and the live page updates in about a minute.
+
+You can also edit `characters.json` by hand. Each character looks like this:
 
 ```json
 {

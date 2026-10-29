@@ -126,6 +126,9 @@ input[type=text], input[type=url] { font: 16px var(--body); padding: 11px 12px; 
 .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: space-between; align-items: center; }
 .row .right { display: flex; gap: 8px; margin-left: auto; }
 .confirm { background: var(--bg); border-radius: 12px; padding: 12px; display: grid; gap: 8px; }
+.steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.steps a { color: var(--accent); overflow-wrap: anywhere; }
+.nophoto { color: var(--accent); }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-weight: 600; font-size: 14px; }
 @media (prefers-reduced-motion: reduce) { .tile { transition: none; } .tile:hover, .tile:active { transform: none; } }
 </style>
@@ -135,15 +138,15 @@ html { color-scheme: light; }
 body { margin: 0; }
 [hidden] { display: none !important; }
 img { max-width: 100%; }
-.nophoto { font-size: 72px; color: var(--accent); }
 </style>
 </head>
 <body>
+
 <div class="wrap">
   <header>
     <div>
       <h1>Costume <span>Song Board</span></h1>
-      <p class="sub">Tap a character to start their song in Spotify.</p>
+      <p class="sub" id="sub">Tap a character to start their song in Spotify.</p>
     </div>
     <div class="actions">
       <div class="seg" id="openMode" role="group" aria-label="Open songs in">
@@ -151,8 +154,11 @@ img { max-width: 100%; }
         <button type="button" data-mode="app" aria-pressed="false">Spotify app</button>
         <button type="button" data-mode="web" aria-pressed="false">Web player</button>
       </div>
+      <button class="toggle" id="editToggle" aria-pressed="false" hidden>Edit characters</button>
+      <button id="disconnectBtn" hidden>Disconnect GitHub</button>
     </div>
   </header>
+
   <div class="toolbar" id="toolbar" hidden>
     <input type="search" id="q" placeholder="Search characters, songs or tags" aria-label="Search characters, songs or tags" autocomplete="off">
     <div class="chips" id="chips" role="group" aria-label="Filter by tag"></div>
@@ -167,81 +173,425 @@ img { max-width: 100%; }
   </div>
   <div id="status" class="note" hidden></div>
   <div id="grid" class="grid" aria-live="polite"></div>
-  <p class="note">On a phone or tablet, "Spotify app" opens each song straight in the Spotify app on your logged-in account. If tapping does nothing, switch to "Web player". On a computer, use "Web player".</p>
+  <div id="empty" class="empty" hidden>
+    <h2>No characters yet</h2>
+    <p>Tap Edit characters to add each costume and the Spotify link for its song.</p>
+    <button class="primary" id="emptyAdd">Add the first character</button>
+  </div>
+  <p class="note">On a phone or tablet, "Spotify app" opens each song straight in the Spotify app on your logged-in account. If tapping does nothing, switch to "Web player". On a computer, use "Web player". To get a link in Spotify: tap ••• on a song, then Share, then Copy link.</p>
 </div>
+
+<dialog id="dlg">
+  <form class="sheet" id="form" novalidate>
+    <h2 id="dlgTitle">Add character</h2>
+    <div class="field">
+      <label for="f-photo">Photo <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+      <div class="pick">
+        <img class="preview" id="preview" alt="" hidden>
+        <div class="nophoto preview" id="previewEmpty" style="font-size:28px;width:96px;height:96px;border-radius:14px">?</div>
+        <input type="file" id="f-photo" accept="image/*">
+      </div>
+    </div>
+    <div class="field">
+      <label for="f-name">Character name</label>
+      <input type="text" id="f-name" maxlength="40" placeholder="Witch, Pikachu, Astronaut…" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="f-tag">Tags <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+      <div class="tagbox" id="tagbox">
+        <span id="tagChips" class="tagchips"></span>
+        <input type="text" id="f-tag" maxlength="30" placeholder="Pokémon, spooky, girls…" autocomplete="off" enterkeyhint="done">
+      </div>
+      <div class="tagsuggest" id="tagSuggest"></div>
+      <small>Type a tag and press Enter or comma. Tap a suggestion to add it.</small>
+    </div>
+    <div class="field">
+      <label for="f-song">Spotify link</label>
+      <input type="url" id="f-song" placeholder="https://open.spotify.com/track/…" autocomplete="off">
+      <small>A song, album or playlist link works.</small>
+    </div>
+    <div class="field">
+      <label for="f-songname">Song name <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+      <input type="text" id="f-songname" maxlength="80" placeholder="Shown under the photo" autocomplete="off">
+    </div>
+    <p class="err" id="err"></p>
+    <div class="confirm" id="confirmBox" hidden>
+      <span>Delete this character? This can't be undone.</span>
+      <div class="row"><button type="button" id="confirmNo">Keep it</button><button type="button" class="danger" id="confirmYes">Delete</button></div>
+    </div>
+    <div class="row">
+      <button type="button" class="danger" id="delBtn" hidden>Delete</button>
+      <div class="right">
+        <button type="button" id="cancelBtn">Cancel</button>
+        <button type="submit" class="primary" id="saveBtn">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+<dialog id="connectDlg">
+  <form class="sheet" id="connectForm" novalidate>
+    <h2>Connect GitHub</h2>
+    <p class="note" style="margin:0">Changes are saved to your costume-song-board repo, so every phone sees the same board. This needs a GitHub access key, set up once per device.</p>
+    <ol class="note steps">
+      <li>Open <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a></li>
+      <li>Name it "Costume Song Board" and pick an expiration date</li>
+      <li>Repository access: <b>Only select repositories</b>, then choose <b>costume-song-board</b></li>
+      <li>Permissions: <b>Contents</b>, set to <b>Read and write</b></li>
+      <li>Tap <b>Generate token</b>, copy it and paste it below</li>
+    </ol>
+    <div class="field">
+      <label for="c-token">Access key</label>
+      <input type="text" id="c-token" placeholder="github_pat_…" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <small>Saved only in this browser on this device. Don't share this page while it's connected.</small>
+    </div>
+    <p class="err" id="c-err"></p>
+    <div class="row"><div class="right">
+      <button type="button" id="connectCancel">Cancel</button>
+      <button type="submit" class="primary" id="connectSave">Connect</button>
+    </div></div>
+  </form>
+</dialog>
+<div class="toast" id="toast" hidden></div>
+
 <script>
 const SPOTIFY_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="currentColor"/><path d="M6.5 9.3c3.8-1.1 8-.8 11.2 1M7 12.4c3.1-.9 6.5-.6 9.2.9M7.5 15.3c2.5-.7 5.2-.5 7.3.7" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>';
 const $ = (id) => document.getElementById(id);
-const state = { items: [], playing: null, tags: new Set(), sort: "custom", q: "" };
-try { const p = JSON.parse(localStorage.getItem("boardPrefs") || "{}"); if (Array.isArray(p.tags)) state.tags = new Set(p.tags); if (typeof p.sort === "string") state.sort = p.sort; } catch {}
+const state = { canEdit: true, editing: false, items: [], loaded: false, playing: null, editId: null, file: null, tags: new Set(), sort: "custom", q: "", draftTags: [] };
+try { const p = JSON.parse(localStorage.getItem("boardPrefs") || "{}"); if (Array.isArray(p.tags)) state.tags = new Set(p.tags.filter((t) => typeof t === "string")); if (typeof p.sort === "string") state.sort = p.sort; } catch {}
+function cleanTag(t) { return (t || "").replace(/^#+/, "").replace(/\s+/g, " ").trim().toLowerCase().slice(0, 30); }
+function tagsOf(x) {
+  const raw = Array.isArray(x.tags) ? x.tags : (x.category ? [x.category] : []);
+  return [...new Set(raw.map(cleanTag).filter(Boolean))];
+}
+function allTags() { return [...new Set(state.items.flatMap(tagsOf))].sort((a, b) => a.localeCompare(b)); }
 function savePrefs() { try { localStorage.setItem("boardPrefs", JSON.stringify({ tags: [...state.tags], sort: state.sort })); } catch {} }
-const cleanTag = (t) => (t || "").replace(/^#+/, "").replace(/\s+/g, " ").trim().toLowerCase();
-const tagsOf = (x) => [...new Set((x.tags || []).map(cleanTag).filter(Boolean))];
-const allTags = () => [...new Set(state.items.flatMap(tagsOf))].sort((a, b) => a.localeCompare(b));
-const kindOf = (url) => { const m = /open\.spotify\.com\/(\w+)\//.exec(url || ""); return m ? m[1] : "song"; };
+
+function normalizeSpotify(raw) {
+  const s = (raw || "").trim();
+  let m = s.match(/^spotify:(track|album|playlist|episode|artist):([A-Za-z0-9]+)$/);
+  if (m) return `https://open.spotify.com/${m[1]}/${m[2]}`;
+  try {
+    const u = new URL(s);
+    if (!/(^|\.)spotify\.com$/.test(u.hostname) && u.hostname !== "spotify.link") return null;
+    if (u.hostname === "spotify.link") return u.href;
+    m = u.pathname.match(/\/(track|album|playlist|episode|artist)\/([A-Za-z0-9]+)/);
+    return m ? `https://open.spotify.com/${m[1]}/${m[2]}` : null;
+  } catch { return null; }
+}
+function kindOf(url) { const m = /open\.spotify\.com\/(\w+)\//.exec(url || ""); return m ? m[1] : "song"; }
 const IS_PHONE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 let openMode = IS_PHONE ? "app" : "web";
-try { const s = localStorage.getItem("openMode"); if (s === "app" || s === "web") openMode = s; } catch {}
+try { const saved = localStorage.getItem("openMode"); if (saved === "app" || saved === "web") openMode = saved; } catch {}
 function linkFor(url) {
   if (openMode !== "app") return url;
   const m = /open\.spotify\.com\/(track|album|playlist|episode|artist)\/([A-Za-z0-9]+)/.exec(url || "");
   return m ? `spotify:${m[1]}:${m[2]}` : url;
 }
 function setOpenMode(mode) {
-  openMode = mode; try { localStorage.setItem("openMode", mode); } catch {}
+  openMode = mode;
+  try { localStorage.setItem("openMode", mode); } catch {}
   document.querySelectorAll("#openMode button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
   render();
 }
+
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2200); }
+
 function render() {
-  const g = $("grid"); g.textContent = "";
+  const g = $("grid");
+  g.textContent = "";
   const all = state.items;
+  $("empty").hidden = !state.loaded || all.length > 0;
+  $("emptyAdd").hidden = false;
   $("toolbar").hidden = all.length === 0;
+
+  // Tag filter buttons and the editor's suggestions
   const tags = allTags();
   state.tags = new Set([...state.tags].filter((t) => tags.includes(t)));
-  const chips = $("chips"); chips.textContent = ""; chips.hidden = tags.length === 0;
+  const chips = $("chips"); chips.textContent = "";
+  chips.hidden = tags.length === 0;
   const mk = (label, n, pressed, onClick) => {
     const b = document.createElement("button"); b.type = "button"; b.setAttribute("aria-pressed", String(pressed));
-    b.append(label + " "); const c = document.createElement("span"); c.className = "count"; c.textContent = n; b.append(c);
+    b.append(label + " "); if (n != null) { const c = document.createElement("span"); c.className = "count"; c.textContent = n; b.append(c); }
     b.addEventListener("click", onClick); chips.append(b);
   };
   mk("All", all.length, state.tags.size === 0, () => { state.tags.clear(); savePrefs(); render(); });
-  tags.forEach((t) => mk("#" + t, all.filter((x) => tagsOf(x).includes(t)).length, state.tags.has(t), () => { state.tags.has(t) ? state.tags.delete(t) : state.tags.add(t); savePrefs(); render(); }));
-  const q = state.q.trim().toLowerCase().replace(/^#/, "");
-  const items = all.filter((x) => {
+  tags.forEach((t) => mk("#" + t, all.filter((x) => tagsOf(x).includes(t)).length, state.tags.has(t), () => {
+    state.tags.has(t) ? state.tags.delete(t) : state.tags.add(t); savePrefs(); render();
+  }));
+
+  // Filter (any selected tag), search, sort
+  const q = state.q.trim().toLowerCase();
+  let items = all.filter((x) => {
     const xt = tagsOf(x);
     if (state.tags.size && !xt.some((t) => state.tags.has(t))) return false;
-    return !q || [x.name, x.songName, ...xt].some((v) => (v || "").toLowerCase().includes(q));
+    if (!q) return true;
+    return [x.name, x.songName, ...xt].some((v) => (v || "").toLowerCase().includes(q.replace(/^#/, "")));
   });
   const byName = (a, b) => (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
-  const sorters = { custom: (a, b) => (a.order ?? 0) - (b.order ?? 0), name: byName, "name-desc": (a, b) => byName(b, a), newest: (a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0) };
-  items.sort(sorters[state.sort] || sorters.custom);
-  if (all.length && !items.length) { const p = document.createElement("p"); p.className = "noresults"; p.textContent = q ? `No characters match "${state.q.trim()}".` : "No characters have these tags."; g.append(p); }
-  items.forEach((it) => {
-    const el = document.createElement("a");
-    el.className = "tile" + (state.playing === it.name ? " playing" : "");
-    el.href = linkFor(it.spotify); el.target = "_blank"; el.rel = "noopener";
-    el.setAttribute("aria-label", `Play ${it.name}'s song`);
-    el.addEventListener("click", () => { state.playing = it.name; render(); });
-    if (it.photo) { const img = document.createElement("img"); img.className = "photo"; img.alt = it.name; img.src = it.photo; img.loading = "lazy"; el.append(img); }
+  const byOrder = (a, b) => (a.order ?? 0) - (b.order ?? 0);
+  const sorters = {
+    custom: byOrder,
+    name: byName,
+    "name-desc": (a, b) => byName(b, a),
+    newest: (a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0),
+  };
+  items.sort(sorters[state.sort] || byOrder);
+  const canReorder = state.sort === "custom" && state.tags.size === 0 && !q;
+
+  if (all.length && !items.length) {
+    const p = document.createElement("p"); p.className = "noresults";
+    p.textContent = q ? `No characters match "${state.q.trim()}".` : "No characters have these tags.";
+    g.append(p);
+  }
+  items.forEach((it, i) => {
+    const el = state.editing ? document.createElement("button") : document.createElement("a");
+    el.className = "tile" + (state.playing === it.id && !state.editing ? " playing" : "");
+    if (state.editing) { el.type = "button"; el.addEventListener("click", (e) => { if (!e.target.closest(".editbar")) openEditor(it); }); }
+    else {
+      el.href = linkFor(it.spotify); el.target = "_blank"; el.rel = "noopener";
+      el.addEventListener("click", () => { state.playing = it.id; render(); });
+    }
+    el.setAttribute("aria-label", state.editing ? `Edit ${it.name}` : `Play ${it.name}'s song`);
+    if (it.photo) { el.append(photoImg(it)); }
     else { const d = document.createElement("div"); d.className = "nophoto"; d.textContent = (it.name || "?").slice(0, 1); el.append(d); }
     const lab = document.createElement("div"); lab.className = "label";
-    const n = document.createElement("div"); n.className = "name"; n.textContent = it.name;
+    const n = document.createElement("div"); n.className = "name"; n.textContent = it.name || "Untitled";
     const s = document.createElement("div"); s.className = "song"; s.innerHTML = SPOTIFY_ICON;
     const sp = document.createElement("span"); sp.textContent = it.songName || ("Spotify " + kindOf(it.spotify)); s.append(sp);
     const tt = tagsOf(it);
     if (tt.length) { const tw = document.createElement("div"); tw.className = "tiletags"; tt.forEach((t) => { const x = document.createElement("span"); x.textContent = "#" + t; tw.append(x); }); lab.append(tw); }
     lab.append(n, s); el.append(lab);
-    if (state.playing === it.name) { const b = document.createElement("div"); b.className = "badge"; b.textContent = "Now playing"; el.append(b); }
+    if (state.playing === it.id && !state.editing) { const b = document.createElement("div"); b.className = "badge"; b.textContent = "Now playing"; el.append(b); }
+    if (state.editing && canReorder) {
+      const bar = document.createElement("div"); bar.className = "editbar";
+      const left = document.createElement("button"); left.type = "button"; left.textContent = "◀"; left.setAttribute("aria-label", "Move earlier"); left.disabled = i === 0;
+      const right = document.createElement("button"); right.type = "button"; right.textContent = "▶"; right.setAttribute("aria-label", "Move later"); right.disabled = i === items.length - 1;
+      left.addEventListener("click", () => swap(items, i, i - 1));
+      right.addEventListener("click", () => swap(items, i, i + 1));
+      bar.append(left, right); el.append(bar);
+    }
     g.append(el);
   });
+  if (state.editing) {
+    const add = document.createElement("button"); add.type = "button"; add.className = "tile addtile";
+    add.innerHTML = '<span class="plus">+</span><span>Add character</span>';
+    add.addEventListener("click", () => openEditor(null));
+    g.append(add);
+  }
+  $("sub").textContent = state.editing
+    ? (canReorder || items.length < 2 ? "Tap a character to change it. Use the arrows to reorder." : "Tap a character to change it. To reorder, choose All, sort by My order and clear the search.")
+    : "Tap a character to start their song in Spotify.";
 }
-document.querySelectorAll("#openMode button").forEach((b) => b.addEventListener("click", () => setOpenMode(b.dataset.mode)));
-$("sortSel").value = state.sort;
-$("sortSel").addEventListener("change", (e) => { state.sort = e.target.value; savePrefs(); render(); });
-$("q").addEventListener("input", (e) => { state.q = e.target.value; render(); });
-setOpenMode(openMode);
-fetch("characters.json", { cache: "no-cache" }).then((r) => r.json()).then((d) => { state.items = Array.isArray(d) ? d : (d.characters || []); render(); })
-  .catch(() => { $("status").textContent = "Couldn't load the characters. Reload the page to try again."; $("status").hidden = false; });
+
+async function swap(items, a, b) {
+  const order = items.map((x) => x.id);
+  [order[a], order[b]] = [order[b], order[a]];
+  const next = state.items.map((x) => ({ ...x, order: order.indexOf(x.id) }));
+  try { await saveAll(next, "Reorder characters"); }
+  catch (e) { toast(errText(e, "Couldn't reorder.")); }
+}
+
+function openEditor(it) {
+  state.editId = it ? it.id : null; state.file = null;
+  $("dlgTitle").textContent = it ? "Edit character" : "Add character";
+  $("f-name").value = it?.name || ""; $("f-song").value = it?.spotify || ""; $("f-songname").value = it?.songName || ""; state.draftTags = it ? tagsOf(it) : [...state.tags]; $("f-tag").value = ""; renderDraftTags();
+  $("f-photo").value = "";
+  setPreview(it?.photo ? photoSrc(it) : null);
+  $("err").textContent = ""; $("delBtn").hidden = !it; $("confirmBox").hidden = true;
+  $("dlg").showModal();
+}
+function setPreview(src) { $("preview").hidden = !src; $("previewEmpty").hidden = !!src; if (src) $("preview").src = src; }
+
+async function shrink(file) {
+  const bmp = await createImageBitmap(file).catch(() => null);
+  if (!bmp) return file;
+  const max = 1000, scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas"); c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+  return await new Promise((r) => c.toBlob((b) => r(b || file), "image/jpeg", 0.85));
+}
+
+function renderDraftTags() {
+  const box = $("tagChips"); box.textContent = "";
+  state.draftTags.forEach((t) => {
+    const c = document.createElement("span"); c.className = "tagchip"; c.append("#" + t);
+    const x = document.createElement("button"); x.type = "button"; x.textContent = "×"; x.setAttribute("aria-label", "Remove tag " + t);
+    x.addEventListener("click", () => { state.draftTags = state.draftTags.filter((d) => d !== t); renderDraftTags(); });
+    c.append(x); box.append(c);
+  });
+  const typed = cleanTag($("f-tag").value);
+  const sug = $("tagSuggest"); sug.textContent = "";
+  allTags().filter((t) => !state.draftTags.includes(t) && (!typed || t.includes(typed))).slice(0, 12).forEach((t) => {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = "+ #" + t;
+    b.addEventListener("click", () => { state.draftTags.push(t); $("f-tag").value = ""; renderDraftTags(); $("f-tag").focus(); });
+    sug.append(b);
+  });
+}
+function commitTagInput() {
+  $("f-tag").value.split(",").map(cleanTag).filter(Boolean).forEach((t) => { if (!state.draftTags.includes(t)) state.draftTags.push(t); });
+  $("f-tag").value = ""; renderDraftTags();
+}
+$("f-tag").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === ",") { e.preventDefault(); commitTagInput(); }
+  else if (e.key === "Backspace" && !e.target.value && state.draftTags.length) { state.draftTags.pop(); renderDraftTags(); }
+});
+$("f-tag").addEventListener("input", (e) => { if (e.target.value.includes(",")) commitTagInput(); else renderDraftTags(); });
+$("f-tag").addEventListener("blur", () => { if (cleanTag($("f-tag").value)) commitTagInput(); });
+$("tagbox").addEventListener("click", (e) => { if (e.target.id === "tagbox") $("f-tag").focus(); });
+$("f-photo").addEventListener("change", (e) => {
+  const f = e.target.files[0]; state.file = f || null;
+  if (f) setPreview(URL.createObjectURL(f));
+});
+$("cancelBtn").addEventListener("click", () => $("dlg").close());
+$("delBtn").addEventListener("click", () => { $("confirmBox").hidden = false; });
+$("confirmNo").addEventListener("click", () => { $("confirmBox").hidden = true; });
+$("confirmYes").addEventListener("click", async () => {
+  const it = state.items.find((x) => x.id === state.editId);
+  $("confirmYes").disabled = true;
+  try {
+    await saveAll(state.items.filter((x) => x.id !== state.editId), `Remove ${it?.name || "character"}`);
+    if (it?.photo) deleteFile(it.photo, `Remove photo for ${it.name}`).catch(() => {});
+    $("dlg").close(); toast("Deleted. The live page updates in about a minute.");
+  } catch (e) { $("err").textContent = errText(e, "Couldn't delete."); }
+  finally { $("confirmYes").disabled = false; }
+});
+
+$("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const name = $("f-name").value.trim();
+  const spotify = normalizeSpotify($("f-song").value);
+  const existing = state.items.find((x) => x.id === state.editId);
+  if (!name) { $("err").textContent = "Give the character a name."; return; }
+  if (!spotify) { $("err").textContent = "Paste a Spotify link, like https://open.spotify.com/track/…"; return; }
+  $("saveBtn").disabled = true; $("saveBtn").textContent = "Saving…"; $("err").textContent = "";
+  try {
+    const id = existing?.id || (slug(name) + "-" + Date.now().toString(36));
+    let photo = existing?.photo || "";
+    if (state.file) {
+      const blob = await shrink(state.file);
+      const path = `photos/${slug(name)}-${Date.now().toString(36)}.jpg`;
+      await putFile(path, await blobToB64(blob), `Add photo for ${name}`);
+      localPhotos[path] = URL.createObjectURL(blob);
+      if (existing?.photo && existing.photo !== path) deleteFile(existing.photo, `Replace photo for ${name}`).catch(() => {});
+      photo = path;
+    }
+    const data = { id, name, songName: $("f-songname").value.trim(), spotify, tags: (commitTagInput(), [...state.draftTags]), photo };
+    let next;
+    if (existing) next = state.items.map((x) => (x.id === id ? { ...x, ...data } : x));
+    else {
+      const maxOrder = state.items.reduce((m, x) => Math.max(m, x.order ?? 0), -1);
+      next = [...state.items, { ...data, order: maxOrder + 1, createdAt: Date.now() }];
+    }
+    await saveAll(next, `${existing ? "Update" : "Add"} ${name}`);
+    $("dlg").close(); toast("Saved. The live page updates in about a minute.");
+  } catch (err) {
+    $("err").textContent = errText(err, "Couldn't save.");
+  } finally { $("saveBtn").disabled = false; $("saveBtn").textContent = "Save"; }
+});
+
+$("editToggle").addEventListener("click", () => {
+  if (!state.editing && !token) { openConnect(); return; }
+  state.editing = !state.editing;
+  $("disconnectBtn").hidden = !state.editing;
+  $("editToggle").setAttribute("aria-pressed", String(state.editing));
+  $("editToggle").textContent = state.editing ? "Done editing" : "Edit characters";
+  render();
+});
+$("emptyAdd").addEventListener("click", () => { if (!token) { openConnect(); return; } if (!state.editing) $("editToggle").click(); openEditor(null); });
+
+// ---- GitHub storage ----
+const REPO = "ianaharsono/costume-song-board";
+const API = `https://api.github.com/repos/${REPO}/contents/`;
+let token = ""; try { token = localStorage.getItem("ghToken") || ""; } catch {}
+let fileSha = null;
+const localPhotos = {};
+function slug(t) { return (t || "character").toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "character"; }
+async function gh(path, opts = {}) {
+  const r = await fetch(API + path, { ...opts, cache: "no-store", headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, ...(opts.body ? { "Content-Type": "application/json" } : {}) } });
+  if (!r.ok) { const e = new Error("GitHub " + r.status); e.status = r.status; throw e; }
+  return r.status === 204 ? null : r.json();
+}
+function errText(e, lead) {
+  if (e?.status === 401) return lead + " GitHub didn't accept the access key. Tap Disconnect, then connect again with a new key.";
+  if (e?.status === 403 || e?.status === 404) return lead + " The access key can't write to costume-song-board. Make a new key with Contents: Read and write for this repo.";
+  if (e?.status === 409 || e?.status === 422) return lead + " Something changed on GitHub at the same time. Reload the page and try again.";
+  return lead + " Check your connection and try again.";
+}
+const utf8ToB64 = (str) => { const bytes = new TextEncoder().encode(str); let bin = ""; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(bin); };
+const b64ToUtf8 = (b64) => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g, "")), (c) => c.charCodeAt(0)));
+const blobToB64 = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(blob); });
+async function putFile(path, contentB64, message, sha) {
+  const body = { message, content: contentB64, branch: "main" }; if (sha) body.sha = sha;
+  return gh(path, { method: "PUT", body: JSON.stringify(body) });
+}
+async function deleteFile(path, message) {
+  const f = await gh(path + "?ref=main");
+  return gh(path, { method: "DELETE", body: JSON.stringify({ message, sha: f.sha, branch: "main" }) });
+}
+function withIds(list) { return list.map((x, i) => ({ ...x, id: x.id || (slug(x.name) + "-" + i) })); }
+async function loadFromGitHub() {
+  const f = await gh("characters.json?ref=main");
+  fileSha = f.sha;
+  const d = JSON.parse(b64ToUtf8(f.content));
+  return withIds(Array.isArray(d) ? d : d.characters || []);
+}
+async function saveAll(items, message) {
+  const clean = items.map(({ id, name, songName, spotify, tags, photo, order, createdAt }) => ({ id, name, songName: songName || "", spotify, tags: tags || [], photo: photo || "", order: order ?? 0, createdAt: createdAt ?? 0 }));
+  const content = utf8ToB64(JSON.stringify({ characters: clean }, null, 2) + "\n");
+  const r = await putFile("characters.json", content, message, fileSha);
+  fileSha = r.content.sha;
+  state.items = clean; render();
+}
+function photoSrc(it) { return localPhotos[it.photo] || it.photo; }
+function photoImg(it) {
+  const img = document.createElement("img"); img.className = "photo"; img.alt = it.name || ""; img.loading = "lazy";
+  img.src = photoSrc(it);
+  img.addEventListener("error", () => { const raw = `https://raw.githubusercontent.com/${REPO}/main/${it.photo}`; if (img.src !== raw) img.src = raw; }, { once: true });
+  return img;
+}
+function openConnect() { $("c-token").value = ""; $("c-err").textContent = ""; $("connectDlg").showModal(); }
+$("connectCancel").addEventListener("click", () => $("connectDlg").close());
+$("connectForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const t = $("c-token").value.trim();
+  if (!t) { $("c-err").textContent = "Paste your GitHub access key."; return; }
+  $("connectSave").disabled = true; $("connectSave").textContent = "Checking…"; $("c-err").textContent = "";
+  const prev = token; token = t;
+  try {
+    const repo = await fetch(`https://api.github.com/repos/${REPO}`, { headers: { Authorization: `Bearer ${t}`, Accept: "application/vnd.github+json" } }).then((r) => { if (!r.ok) { const er = new Error(); er.status = r.status; throw er; } return r.json(); });
+    if (repo.permissions && !repo.permissions.push) { const er = new Error(); er.status = 403; throw er; }
+    state.items = await loadFromGitHub(); state.loaded = true;
+    try { localStorage.setItem("ghToken", t); } catch {}
+    $("connectDlg").close(); toast("Connected to GitHub");
+    if (!state.editing) $("editToggle").click(); else render();
+  } catch (err) { token = prev; $("c-err").textContent = errText(err, "Couldn't connect."); }
+  finally { $("connectSave").disabled = false; $("connectSave").textContent = "Connect"; }
+});
+$("disconnectBtn").addEventListener("click", () => {
+  token = ""; try { localStorage.removeItem("ghToken"); } catch {}
+  if (state.editing) $("editToggle").click();
+  $("disconnectBtn").hidden = true; toast("Disconnected from GitHub on this device");
+});
+
+async function start() {
+  document.querySelectorAll("#openMode button").forEach((b) => b.addEventListener("click", () => setOpenMode(b.dataset.mode)));
+  $("sortSel").value = state.sort;
+  $("sortSel").addEventListener("change", (e) => { state.sort = e.target.value; savePrefs(); render(); });
+  $("q").addEventListener("input", (e) => { state.q = e.target.value; render(); });
+  setOpenMode(openMode);
+  $("editToggle").hidden = false;
+  try {
+    if (token) state.items = await loadFromGitHub().catch(() => null);
+    if (!token || !state.items) {
+      const d = await fetch("characters.json", { cache: "no-cache" }).then((r) => r.json());
+      state.items = withIds(Array.isArray(d) ? d : d.characters || []);
+    }
+    state.loaded = true; render();
+  } catch { showStatus("Couldn't load the characters. Reload the page to try again."); }
+}
+function showStatus(msg) { $("status").textContent = msg; $("status").hidden = false; }
+start();
 </script>
+
 </body>
 </html>
