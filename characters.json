@@ -300,6 +300,18 @@
       "photo": "photos/jedi-mvu1reug.jpg",
       "order": 23,
       "createdAt": 1793308808033
+    },
+    {
+      "id": "darth-vader-mvu1sipd",
+      "name": "Darth Vader",
+      "songName": "The Imperial March",
+      "spotify": "https://open.spotify.com/track/2bw4WgXyXP90hIex7ur58y",
+      "tags": [
+        "movies"
+      ],
+      "photo": "photos/darth-vader-mvu1sipd.jpg",
+      "order": 24,
+      "createdAt": 1793308859629
     }
   ]
 }
