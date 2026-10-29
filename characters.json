@@ -189,6 +189,18 @@
       "photo": "photos/witch-mvtykg81.jpg",
       "order": 14,
       "createdAt": 1793303444703
+    },
+    {
+      "id": "pumpkin-mvtyodb9",
+      "name": "Pumpkin",
+      "songName": "I am a Pumpkin",
+      "spotify": "https://open.spotify.com/track/3L3WfZZfyzkUEezwLSe4x5",
+      "tags": [
+        "classic"
+      ],
+      "photo": "photos/pumpkin-mvtyodb9.jpg",
+      "order": 15,
+      "createdAt": 1793303627497
     }
   ]
 }
