@@ -251,6 +251,18 @@
       "photo": "photos/ariel-mvu0ubjs.jpg",
       "order": 19,
       "createdAt": 1793307263897
+    },
+    {
+      "id": "minion-mvu0vqdb",
+      "name": "Minion",
+      "songName": "Y.M.C.A.",
+      "spotify": "https://open.spotify.com/track/45WZ2N9hK3b7KhOECCUGkh",
+      "tags": [
+        "movies"
+      ],
+      "photo": "photos/minion-mvu0vqdb.jpg",
+      "order": 20,
+      "createdAt": 1793307329879
     }
   ]
 }
