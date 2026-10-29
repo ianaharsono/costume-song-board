@@ -201,6 +201,18 @@
       "photo": "photos/pumpkin-mvtyqa81.jpg",
       "order": 15,
       "createdAt": 1793303627497
+    },
+    {
+      "id": "paw-patrol-mvu0pt02",
+      "name": "Paw Patrol",
+      "songName": "PAW Patrol Theme",
+      "spotify": "https://open.spotify.com/track/2bTc3HglsgQ8kbn1dUeo1M",
+      "tags": [
+        "tv"
+      ],
+      "photo": "photos/paw-patrol-mvu0pt02.jpg",
+      "order": 16,
+      "createdAt": 1793307053746
     }
   ]
 }
