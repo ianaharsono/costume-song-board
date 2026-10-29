@@ -415,7 +415,7 @@ function render() {
       el.addEventListener("click", (e) => {
         state.playing = it.id;
         if (sp.connected() && spotifyAwake()) { e.preventDefault(); playOnSpotify(it); }
-        else if (sp.connected()) { pendingPlay = null; pendingRepeat = it; showStarting(it); render(); }
+        else if (sp.connected()) { e.preventDefault(); openAndPlay(it); }
         else render();
       });
     }
@@ -879,6 +879,13 @@ function showStarting(it) {
   const src = it.photo ? photoSrc(it) : "";
   $("plArt").hidden = !src; $("plBlank").hidden = !!src; if (src) $("plArt").src = src;
 }
+// Spotify only autoplays a linked song when nothing else is playing, so stop the current song first,
+// open the new one in the app, and start it from here if it still isn't playing when you come back.
+async function openAndPlay(it, skipPause) {
+  pendingPlay = it; showStarting(it); render();
+  if (!skipPause) await Promise.race([spApi("/me/player/pause", { method: "PUT" }).catch(() => {}), new Promise((r) => setTimeout(r, 800))]);
+  if (openMode === "app") location.href = linkFor(it.spotify); else window.open(it.spotify, "_blank");
+}
 let pendingPlay = null, pendingRepeat = null, lastPoll = { at: 0, active: false };
 function spotifyAwake() { return lastPoll.active && Date.now() - lastPoll.at < 15000; }
 async function playOnSpotify(it, isRetry) {
@@ -901,14 +908,25 @@ async function playOnSpotify(it, isRetry) {
     if (!sp.connected()) { toast("Spotify signed out. Tap Connect Spotify again."); pollPlayer(); return; }
     if (e.reason === "PREMIUM_REQUIRED") { toast("Spotify needs Premium to start songs from the board."); pollPlayer(); return; }
     if (isRetry) { toast("Spotify still isn't ready. Tap the character again."); pollPlayer(); return; }
-    // Couldn't start it remotely: open the song in Spotify instead, and switch on repeat when you come back.
-    pendingRepeat = it; lastPoll.active = false;
-    if (openMode === "app") location.href = linkFor(it.spotify); else window.open(it.spotify, "_blank");
+    // Couldn't start it remotely: open the song in the Spotify app, and make sure it's playing when you come back.
+    lastPoll.active = false;
+    openAndPlay(it, true);
   }
 }
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible" || !sp.connected()) return;
-  if (pendingPlay) { const it = pendingPlay; pendingPlay = null; setTimeout(() => playOnSpotify(it, true), 500); return; }
+  if (pendingPlay) {
+    const it = pendingPlay, u = spUri(it.spotify); pendingPlay = null;
+    setTimeout(async () => {
+      let p = null; try { p = await spApi("/me/player"); } catch {}
+      if (u && p?.is_playing && p.item?.uri === u.uri) {
+        hold = { playing: true, until: Date.now() + 6000, uri: u.uri };
+        setRepeat(u.type === "track" || u.type === "episode" ? "track" : "context", p.device?.id).catch(() => {});
+        pollPlayer();
+      } else playOnSpotify(it, true);
+    }, 500);
+    return;
+  }
   if (pendingRepeat) {
     const it = pendingRepeat, u = spUri(it.spotify); pendingRepeat = null;
     if (u) { hold = { playing: true, until: Date.now() + 6000, uri: u.uri }; setRepeat(u.type === "track" || u.type === "episode" ? "track" : "context").catch(() => {}); }
