@@ -288,6 +288,18 @@
       "photo": "photos/batman-mvu1pgud.jpg",
       "order": 22,
       "createdAt": 1793308717583
+    },
+    {
+      "id": "jedi-mvu1re8b",
+      "name": "Jedi",
+      "songName": "Star Wars Theme",
+      "spotify": "https://open.spotify.com/track/7a9UUo3zfID7Ik2fTQjRLi",
+      "tags": [
+        "movies"
+      ],
+      "photo": "photos/jedi-mvu1reug.jpg",
+      "order": 23,
+      "createdAt": 1793308808033
     }
   ]
 }
