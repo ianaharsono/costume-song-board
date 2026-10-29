@@ -361,6 +361,18 @@
       "photo": "photos/glinda-mvu21whg.jpg",
       "order": 28,
       "createdAt": 1793309297236
+    },
+    {
+      "id": "mario-mvu24ahk",
+      "name": "Mario",
+      "songName": "Super Mario Theme",
+      "spotify": "https://open.spotify.com/track/4cmRCH5q4Mp5DKqsGkQ2eu",
+      "tags": [
+        "game"
+      ],
+      "photo": "photos/mario-mvu24aj2.jpg",
+      "order": 29,
+      "createdAt": 1793309408963
     }
   ]
 }
