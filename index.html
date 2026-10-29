@@ -141,6 +141,9 @@ input[type=text], input[type=url] { font: 16px var(--body); padding: 11px 12px; 
 .steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
 .steps a { color: var(--accent); overflow-wrap: anywhere; }
 .nophoto { color: var(--accent); }
+.spbtn { border-color: var(--spotify); }
+#spConnect { background: var(--spotify); color: #0b1d10; }
+.sprow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-weight: 600; font-size: 14px; }
 @media (prefers-reduced-motion: reduce) { .tile { transition: none; } .tile:hover, .tile:active { transform: none; } }
 </style>
@@ -168,6 +171,8 @@ img { max-width: 100%; }
       </div>
       <button class="toggle" id="editToggle" aria-pressed="false" hidden>Edit characters</button>
       <button id="disconnectBtn" hidden>Disconnect GitHub</button>
+      <button id="spConnect" class="spbtn" hidden>Connect Spotify for repeat</button>
+      <button id="spPause" class="spbtn" hidden>Pause music</button>
     </div>
   </header>
 
@@ -377,7 +382,11 @@ function render() {
     if (state.editing) { el.type = "button"; el.addEventListener("click", (e) => { if (!e.target.closest(".editbar")) openEditor(it); }); }
     else {
       el.href = linkFor(it.spotify); el.target = "_blank"; el.rel = "noopener";
-      el.addEventListener("click", () => { state.playing = it.id; render(); });
+      el.addEventListener("click", (e) => {
+        state.playing = it.id;
+        if (sp.connected()) { e.preventDefault(); playOnSpotify(it); }
+        else render();
+      });
     }
     el.setAttribute("aria-label", state.editing ? `Edit ${it.name}` : `Play ${it.name}'s song`);
     if (it.photo) { el.append(photoImg(it)); }
@@ -712,6 +721,7 @@ async function start() {
   setOpenMode(openMode);
   $("editToggle").hidden = false;
   await refresh(true);
+  await spInit();
   // Pick up changes made on other devices: check when the page comes back into view, and every minute while it's open.
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refresh(); });
   window.addEventListener("focus", () => refresh());
@@ -735,6 +745,103 @@ async function refresh(first) {
   finally { refreshing = false; }
 }
 function showStatus(msg) { $("status").textContent = msg; $("status").hidden = false; }
+// ---- Spotify playback with repeat (Spotify Premium + a developer app Client ID in config.json) ----
+const SP_REDIRECT = location.origin + location.pathname;
+const SP_SCOPES = "user-modify-playback-state user-read-playback-state";
+const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} };
+const sp = {
+  clientId: "",
+  tok: JSON.parse(lsGet("spTok") || "null"),
+  connected() { return !!(this.clientId && this.tok?.refresh_token); },
+  save(t) { this.tok = t; lsSet("spTok", t ? JSON.stringify(t) : null); spButtons(); },
+};
+function spButtons() {
+  $("spConnect").hidden = !sp.clientId || sp.connected();
+  $("spPause").hidden = !sp.connected();
+}
+const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+async function spLogin() {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
+  const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+  const stateStr = b64url(crypto.getRandomValues(new Uint8Array(12)));
+  lsSet("spVerifier", verifier); lsSet("spState", stateStr);
+  const p = new URLSearchParams({ client_id: sp.clientId, response_type: "code", redirect_uri: SP_REDIRECT, scope: SP_SCOPES, code_challenge_method: "S256", code_challenge: challenge, state: stateStr });
+  location.href = "https://accounts.spotify.com/authorize?" + p;
+}
+async function spTokenRequest(params) {
+  const r = await fetch("https://accounts.spotify.com/api/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: sp.clientId, ...params }) });
+  if (!r.ok) { const e = new Error("token"); e.status = r.status; throw e; }
+  const t = await r.json();
+  return { access_token: t.access_token, refresh_token: t.refresh_token || sp.tok?.refresh_token, expires_at: Date.now() + (t.expires_in - 60) * 1000 };
+}
+async function spAccess() {
+  if (sp.tok?.access_token && Date.now() < sp.tok.expires_at) return sp.tok.access_token;
+  try { sp.save(await spTokenRequest({ grant_type: "refresh_token", refresh_token: sp.tok.refresh_token })); }
+  catch (e) { if (e.status === 400 || e.status === 401) sp.save(null); throw e; }
+  return sp.tok.access_token;
+}
+async function spApi(path, opts = {}) {
+  const r = await fetch("https://api.spotify.com/v1" + path, { ...opts, headers: { Authorization: "Bearer " + (await spAccess()), ...(opts.body ? { "Content-Type": "application/json" } : {}) } });
+  if (!r.ok) { let reason = ""; try { reason = (await r.json())?.error?.reason || ""; } catch {} const e = new Error("spotify " + r.status); e.status = r.status; e.reason = reason; throw e; }
+  return r.status === 204 || r.headers.get("content-length") === "0" ? null : r.json().catch(() => null);
+}
+function spUri(url) { const m = /open\.spotify\.com\/(track|album|playlist|episode|artist)\/([A-Za-z0-9]+)/.exec(url || ""); return m ? { type: m[1], uri: `spotify:${m[1]}:${m[2]}` } : null; }
+let pendingRepeat = null;
+async function setRepeat(kind, deviceId) {
+  const q = new URLSearchParams({ state: kind }); if (deviceId) q.set("device_id", deviceId);
+  await spApi("/me/player/repeat?" + q, { method: "PUT" });
+}
+async function playOnSpotify(it) {
+  render();
+  const u = spUri(it.spotify);
+  if (!u) { window.open(it.spotify, "_blank"); return; }
+  const repeatKind = u.type === "track" || u.type === "episode" ? "track" : "context";
+  try {
+    const { devices = [] } = (await spApi("/me/player/devices")) || {};
+    const dev = devices.find((d) => d.is_active) || devices.find((d) => /smartphone|tablet/i.test(d.type)) || devices[0];
+    if (!dev) throw Object.assign(new Error("nodevice"), { reason: "NO_ACTIVE_DEVICE" });
+    const body = u.type === "track" || u.type === "episode" ? { uris: [u.uri] } : { context_uri: u.uri };
+    await spApi("/me/player/play?device_id=" + encodeURIComponent(dev.id), { method: "PUT", body: JSON.stringify(body) });
+    await setRepeat(repeatKind, dev.id).catch(async () => { await new Promise((r) => setTimeout(r, 700)); return setRepeat(repeatKind, dev.id); });
+    toast(`Playing ${it.name}'s song on repeat${dev.name ? " · " + dev.name : ""}`);
+  } catch (e) {
+    if (e.reason === "PREMIUM_REQUIRED") { toast("Spotify says this account needs Premium for repeat. Opening the song instead."); }
+    else if (!sp.connected()) { toast("Spotify signed out. Tap Connect Spotify again. Opening the song for now."); }
+    // No Spotify device awake: open the app with the song, then switch on repeat when you come back.
+    pendingRepeat = repeatKind;
+    location.href = linkFor(it.spotify);
+  }
+}
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState !== "visible" || !pendingRepeat || !sp.connected()) return;
+  const kind = pendingRepeat; pendingRepeat = null;
+  try { await setRepeat(kind); toast("Repeat is on"); } catch {}
+});
+$("spConnect").addEventListener("click", () => spLogin().catch(() => toast("Couldn't start Spotify sign-in.")));
+$("spPause").addEventListener("click", async () => {
+  try { await spApi("/me/player/pause", { method: "PUT" }); state.playing = null; render(); toast("Paused"); }
+  catch (e) { toast(e.status === 404 ? "Nothing is playing right now." : "Couldn't pause. Try again in Spotify."); }
+});
+async function spInit() {
+  try {
+    const cfg = await fetch(`https://raw.githubusercontent.com/${REPO}/main/config.json?t=${Date.now()}`).then((r) => r.ok ? r.json() : Promise.reject())
+      .catch(() => fetch("config.json", { cache: "no-cache" }).then((r) => r.json()));
+    sp.clientId = (cfg.spotifyClientId || "").trim();
+  } catch {}
+  const q = new URLSearchParams(location.search);
+  if (q.has("code") || q.has("error")) {
+    history.replaceState(null, "", location.pathname + location.hash);
+    if (q.get("error")) toast("Spotify sign-in was cancelled.");
+    else if (q.get("state") !== lsGet("spState")) toast("Spotify sign-in didn't match. Try Connect Spotify again.");
+    else {
+      try { sp.save(await spTokenRequest({ grant_type: "authorization_code", code: q.get("code"), redirect_uri: SP_REDIRECT, code_verifier: lsGet("spVerifier") })); toast("Spotify connected. Songs now play on repeat."); }
+      catch { toast("Couldn't finish connecting Spotify. Try again."); }
+    }
+    lsSet("spVerifier", null); lsSet("spState", null);
+  }
+  spButtons();
+}
 start();
 </script>
 
