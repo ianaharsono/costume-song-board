@@ -165,6 +165,18 @@
       "photo": "photos/spiderman-mvtydjqs.jpg",
       "order": 12,
       "createdAt": 1793303122574
+    },
+    {
+      "id": "ghost-spider-mvtyej3y",
+      "name": "Ghost Spider",
+      "songName": "Super Hero on the Beat",
+      "spotify": "https://open.spotify.com/track/2pcR3WzgeApNXILR8IlI9f",
+      "tags": [
+        "superhero"
+      ],
+      "photo": "photos/ghost-spider-mvtyej3y.jpg",
+      "order": 13,
+      "createdAt": 1793303168257
     }
   ]
 }
