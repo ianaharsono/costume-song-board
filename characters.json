@@ -481,6 +481,18 @@
       "photo": "photos/superman-mvu3wpux.jpg",
       "order": 38,
       "createdAt": 1793312414742
+    },
+    {
+      "id": "pikachu-mvu4612r",
+      "name": "Pikachu",
+      "songName": "The Pikachu Song",
+      "spotify": "https://open.spotify.com/track/7cggQ0tcUZEdtKzbVKYOIJ",
+      "tags": [
+        "tv"
+      ],
+      "photo": "photos/pikachu-mvu461bz.jpg",
+      "order": 39,
+      "createdAt": 1793312849556
     }
   ]
 }
