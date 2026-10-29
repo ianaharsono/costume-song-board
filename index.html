@@ -158,6 +158,30 @@ body.gated { overflow: hidden; }
 .gatecard p { margin: 0; color: var(--muted); max-width: 40ch; }
 .gatebtn { background: var(--spotify) !important; border-color: var(--spotify) !important; color: #0b1d10 !important; font-size: 17px; padding: 14px 28px; }
 .gatesmall { font-size: 13px; }
+.cell { position: relative; display: grid; min-width: 0; }
+.tileacts { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 8px; z-index: 2; }
+.act { width: 42px; height: 42px; padding: 0; border-radius: 50%; justify-content: center; border: none; box-shadow: 0 2px 10px rgba(15, 10, 30, .28); }
+.act-play { background: var(--spotify); color: #0b1d10; }
+.act-queue { background: rgba(255, 255, 255, .94); color: #1d1a2b; }
+.act-queue.on { background: var(--accent); color: var(--accent-ink); }
+.act:active { transform: scale(.9); }
+.qbadge { position: absolute; top: 10px; left: 10px; background: var(--accent); color: var(--accent-ink); font: 700 12px var(--body); letter-spacing: .04em; padding: 4px 10px; border-radius: 999px; }
+.plside { position: relative; width: 46px; height: 46px; padding: 0; border-radius: 50%; justify-content: center; flex: none; }
+.plside[disabled] { opacity: .35; }
+.qcount { position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font: 700 12px/20px var(--body); text-align: center; }
+#queueDlg .sheet { display: grid; gap: 14px; padding: 22px; }
+#queueDlg h2 { font-family: var(--display); font-size: 26px; }
+.qlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; max-height: 55vh; overflow-y: auto; }
+.qlist:empty { display: none; }
+.qrow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.qnum { width: 18px; flex: none; text-align: center; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.qpic { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; flex: none; font-size: 20px; aspect-ratio: auto; }
+.qtext { flex: 1; min-width: 0; display: grid; gap: 1px; text-align: left; border: none; background: transparent; padding: 4px; border-radius: 10px; }
+.qtext strong { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qtext span { font-size: 13px; color: var(--muted); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qbtn { width: 34px; height: 34px; padding: 0; justify-content: center; border-radius: 50%; flex: none; font-size: 13px; }
+.qbtn[disabled] { opacity: .3; }
+@media (max-width: 380px) { .plside { width: 40px; height: 40px; } .plart { width: 48px; height: 48px; } }
 body.has-player { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
 .player { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--surface); border-top: 1.5px solid var(--line); box-shadow: 0 -6px 24px rgba(20, 15, 40, .12);
   padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
@@ -173,7 +197,7 @@ body.has-player { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px))
 .plbtn:active { transform: scale(.92); }
 .plbtn svg { display: block; }
 body.has-player .toast { z-index: 30; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
-.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-weight: 600; font-size: 14px; }
+.toast { z-index: 40; max-width: calc(100% - 32px); text-align: center; position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-weight: 600; font-size: 14px; }
 @media (prefers-reduced-motion: reduce) { .tile { transition: none; } .tile:hover, .tile:active { transform: none; } }
 </style>
 <style>
@@ -330,18 +354,34 @@ img { max-width: 100%; }
       <div class="pltitle" id="plTitle">Nothing playing</div>
       <div class="plsub" id="plSub">Tap a character to start a song</div>
     </div>
+    <button type="button" class="plside" id="plQueue" aria-label="Show queue">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M3 6h14M3 11h14M3 16h9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/><path d="M15.5 14.5v5.5l4.5-2.75z" fill="currentColor"/></svg>
+      <span class="qcount" id="plQueueCount" hidden>0</span>
+    </button>
+    <button type="button" class="plside" id="plNext" aria-label="Play next in queue" disabled>
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 5.8v12.4a.9.9 0 0 0 1.4.75l8.9-6.2a.9.9 0 0 0 0-1.5L6.4 5.05A.9.9 0 0 0 5 5.8z" fill="currentColor"/><rect x="16.6" y="5" width="2.6" height="14" rx="1" fill="currentColor"/></svg>
+    </button>
     <button type="button" class="plbtn" id="plToggle" aria-label="Play">
       <svg id="plIconPlay" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" fill="currentColor"/></svg>
       <svg id="plIconPause" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" hidden><rect x="6" y="5" width="4.2" height="14" rx="1.2" fill="currentColor"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.2" fill="currentColor"/></svg>
     </button>
   </div>
 </div>
+<dialog id="queueDlg">
+  <div class="sheet">
+    <div class="row"><h2 style="margin:0">Queue</h2><div class="right"><button type="button" id="qClear" class="danger" hidden>Clear</button><button type="button" id="qClose">Done</button></div></div>
+    <p class="note" id="qEmpty" style="margin:0">Nothing queued yet. Tap the queue icon on a character's photo to line up the next songs.</p>
+    <ol class="qlist" id="qList"></ol>
+    <button type="button" class="primary" id="qPlayNext">Play next</button>
+  </div>
+</dialog>
 <div class="toast" id="toast" hidden></div>
 
 <script>
 const SPOTIFY_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="currentColor"/><path d="M6.5 9.3c3.8-1.1 8-.8 11.2 1M7 12.4c3.1-.9 6.5-.6 9.2.9M7.5 15.3c2.5-.7 5.2-.5 7.3.7" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>';
 const $ = (id) => document.getElementById(id);
-const state = { canEdit: true, editing: false, items: [], loaded: false, playing: null, editId: null, file: null, tags: new Set(), sort: "name", q: "", draftTags: [] };
+const state = { canEdit: true, editing: false, items: [], loaded: false, playing: null, editId: null, file: null, tags: new Set(), sort: "name", q: "", draftTags: [], queue: [] };
+try { const qq = JSON.parse(localStorage.getItem("songQueue") || "[]"); if (Array.isArray(qq)) state.queue = qq.filter((x) => typeof x === "string"); } catch {}
 try { const p = JSON.parse(localStorage.getItem("boardPrefs2") || "{}"); if (Array.isArray(p.tags)) state.tags = new Set(p.tags.filter((t) => typeof t === "string")); if (typeof p.sort === "string") state.sort = p.sort; } catch {}
 function cleanTag(t) { return (t || "").replace(/^#+/, "").replace(/\s+/g, " ").trim().toLowerCase().slice(0, 30); }
 function tagsOf(x) {
@@ -434,12 +474,7 @@ function render() {
     if (state.editing) { el.type = "button"; el.addEventListener("click", (e) => { if (!e.target.closest(".editbar")) openEditor(it); }); }
     else {
       el.href = linkFor(it.spotify); el.target = "_blank"; el.rel = "noopener";
-      el.addEventListener("click", (e) => {
-        state.playing = it.id;
-        if (sp.connected() && spotifyAwake()) { e.preventDefault(); playOnSpotify(it); }
-        else if (sp.connected()) { e.preventDefault(); openAndPlay(it); }
-        else render();
-      });
+      el.addEventListener("click", (e) => tapPlay(it, e));
     }
     el.setAttribute("aria-label", state.editing ? `Edit ${it.name}` : `Play ${it.name}'s song`);
     if (it.photo) { el.append(photoImg(it)); }
@@ -447,11 +482,13 @@ function render() {
     const lab = document.createElement("div"); lab.className = "label";
     const n = document.createElement("div"); n.className = "name"; n.textContent = it.name || "Untitled";
     const s = document.createElement("div"); s.className = "song"; s.innerHTML = SPOTIFY_ICON;
-    const sp = document.createElement("span"); sp.textContent = it.songName || ("Spotify " + kindOf(it.spotify)); sp.title = sp.textContent; s.append(sp);
+    const songText = document.createElement("span"); songText.textContent = it.songName || ("Spotify " + kindOf(it.spotify)); songText.title = songText.textContent; s.append(songText);
     const tt = tagsOf(it);
     if (tt.length) { const tw = document.createElement("div"); tw.className = "tiletags"; tt.forEach((t) => { const x = document.createElement("span"); x.textContent = "#" + t; tw.append(x); }); lab.append(tw); }
     lab.append(n, s); el.append(lab);
     if (state.playing === it.id && !state.editing) { const b = document.createElement("div"); b.className = "badge"; b.textContent = "Now playing"; el.append(b); }
+    const qi = state.queue.indexOf(it.id);
+    if (qi >= 0 && !state.editing) { const b = document.createElement("div"); b.className = "qbadge"; b.textContent = qi === 0 ? "Up next" : `Queue #${qi + 1}`; el.append(b); }
     if (state.editing && canReorder) {
       const bar = document.createElement("div"); bar.className = "editbar";
       const left = document.createElement("button"); left.type = "button"; left.textContent = "◀"; left.setAttribute("aria-label", "Move earlier"); left.disabled = i === 0;
@@ -460,7 +497,17 @@ function render() {
       right.addEventListener("click", () => swap(items, i, i + 1));
       bar.append(left, right); el.append(bar);
     }
-    g.append(el);
+    if (state.editing) { g.append(el); return; }
+    const cell = document.createElement("div"); cell.className = "cell";
+    const acts = document.createElement("div"); acts.className = "tileacts";
+    const pb = document.createElement("button"); pb.type = "button"; pb.className = "act act-play"; pb.innerHTML = ICON_PLAY; pb.setAttribute("aria-label", `Play ${it.name}'s song now`);
+    pb.addEventListener("click", (e) => tapPlay(it, e));
+    const inQ = qi >= 0;
+    const qb = document.createElement("button"); qb.type = "button"; qb.className = "act act-queue" + (inQ ? " on" : ""); qb.innerHTML = inQ ? ICON_QUEUED : ICON_QUEUE;
+    qb.setAttribute("aria-label", inQ ? `Remove ${it.name} from the queue` : `Add ${it.name} to the queue`);
+    qb.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); toggleQueue(it); });
+    acts.append(qb, pb);
+    cell.append(el, acts); g.append(cell);
   });
   if (state.editing) {
     const add = document.createElement("button"); add.type = "button"; add.className = "tile addtile";
@@ -468,6 +515,7 @@ function render() {
     add.addEventListener("click", () => openEditor(null));
     g.append(add);
   }
+  renderQueue();
   $("sub").textContent = state.editing
     ? (canReorder || items.length < 2 ? "Tap a character to change it. Use the arrows to reorder." : "Tap a character to change it. To reorder, choose All, sort by My order and clear the search.")
     : "Tap a character to start their song in Spotify.";
@@ -687,6 +735,58 @@ $("editToggle").addEventListener("click", () => {
   render();
 });
 $("emptyAdd").addEventListener("click", () => { if (!token) { openConnect(); return; } if (!state.editing) $("editToggle").click(); openEditor(null); });
+
+// ---- Play + queue ----
+const ICON_PLAY = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" fill="currentColor"/></svg>';
+const ICON_QUEUE = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 6h12M3 11h12M3 16h7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/><path d="M18 13v7M14.5 16.5h7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+const ICON_QUEUED = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 6h12M3 11h12M3 16h6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/><path d="M13.5 17l2.6 2.6L21.5 14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
+function tapPlay(it, e) {
+  state.playing = it.id;
+  if (state.queue.includes(it.id)) { state.queue = state.queue.filter((x) => x !== it.id); saveQueue(); }
+  if (sp.connected()) {
+    e?.preventDefault(); e?.stopPropagation();
+    if (spotifyAwake()) playOnSpotify(it); else openAndPlay(it);
+  } else if (e?.currentTarget?.tagName !== "A") {
+    e?.preventDefault(); location.href = linkFor(it.spotify);
+  } else render();
+}
+function saveQueue() { try { localStorage.setItem("songQueue", JSON.stringify(state.queue)); } catch {} renderQueue(); }
+function toggleQueue(it) {
+  if (state.queue.includes(it.id)) { state.queue = state.queue.filter((x) => x !== it.id); toast(`Removed ${it.name} from the queue`); }
+  else { state.queue.push(it.id); toast(state.queue.length === 1 ? `${it.name} is up next` : `Added ${it.name} · #${state.queue.length} in the queue`); }
+  saveQueue(); render();
+}
+function playNext() {
+  const id = state.queue.shift(); saveQueue();
+  const it = state.items.find((x) => x.id === id);
+  if (!it) { toast("The queue is empty. Tap the queue icon on a photo to add songs."); render(); return; }
+  tapPlay(it, null);
+}
+function renderQueue() {
+  state.queue = state.queue.filter((id) => state.items.length === 0 || state.items.some((x) => x.id === id));
+  const n = state.queue.length;
+  if ($("plQueueCount")) { $("plQueueCount").textContent = n; $("plQueueCount").hidden = n === 0; }
+  if ($("plNext")) $("plNext").disabled = n === 0;
+  const list = $("qList"); if (!list) return;
+  list.textContent = "";
+  $("qEmpty").hidden = n > 0; $("qClear").hidden = n === 0;
+  state.queue.forEach((id, i) => {
+    const it = state.items.find((x) => x.id === id); if (!it) return;
+    const row = document.createElement("li"); row.className = "qrow";
+    const num = document.createElement("span"); num.className = "qnum"; num.textContent = i + 1;
+    const pic = it.photo ? Object.assign(photoImg(it), { className: "qpic" }) : Object.assign(document.createElement("div"), { className: "qpic nophoto", textContent: (it.name || "?")[0] });
+    const txt = document.createElement("button"); txt.type = "button"; txt.className = "qtext";
+    const nm = document.createElement("strong"); nm.textContent = it.name;
+    const sg = document.createElement("span"); sg.textContent = it.songName || "Spotify song";
+    txt.append(nm, sg); txt.setAttribute("aria-label", `Play ${it.name} now`);
+    txt.addEventListener("click", () => { $("queueDlg").close(); tapPlay(it, null); });
+    const mk = (label, html, fn, dis) => { const b = document.createElement("button"); b.type = "button"; b.className = "qbtn"; b.innerHTML = html; b.setAttribute("aria-label", label); b.disabled = !!dis; b.addEventListener("click", fn); return b; };
+    const up = mk(`Move ${it.name} up`, "▲", () => { [state.queue[i - 1], state.queue[i]] = [state.queue[i], state.queue[i - 1]]; saveQueue(); render(); }, i === 0);
+    const dn = mk(`Move ${it.name} down`, "▼", () => { [state.queue[i + 1], state.queue[i]] = [state.queue[i], state.queue[i + 1]]; saveQueue(); render(); }, i === n - 1);
+    const rm = mk(`Remove ${it.name}`, "×", () => { state.queue.splice(i, 1); saveQueue(); render(); });
+    row.append(num, pic, txt, up, dn, rm); list.append(row);
+  });
+}
 
 // ---- GitHub storage ----
 const REPO = "ianaharsono/costume-song-board";
@@ -1030,6 +1130,11 @@ async function spInit() {
   }
   spButtons();
 }
+$("plQueue").addEventListener("click", () => { renderQueue(); $("queueDlg").showModal(); });
+$("qClose").addEventListener("click", () => $("queueDlg").close());
+$("qClear").addEventListener("click", () => { state.queue = []; saveQueue(); render(); });
+$("qPlayNext").addEventListener("click", () => { $("queueDlg").close(); playNext(); });
+$("plNext").addEventListener("click", () => playNext());
 start();
 </script>
 
