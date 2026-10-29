@@ -238,6 +238,19 @@
       "photo": "photos/moana-mvu0saor.jpg",
       "order": 18,
       "createdAt": 1793307169790
+    },
+    {
+      "id": "ariel-mvu0ubjs",
+      "name": "Ariel",
+      "songName": "Part of Your World",
+      "spotify": "https://open.spotify.com/track/2HRhVQ0yo1jIvXoRTCIdEz",
+      "tags": [
+        "disney",
+        "princess"
+      ],
+      "photo": "photos/ariel-mvu0ubjs.jpg",
+      "order": 19,
+      "createdAt": 1793307263897
     }
   ]
 }
