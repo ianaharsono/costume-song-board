@@ -157,6 +157,8 @@ body.has-player { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px))
 .plsub { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .plbtn { width: 60px; height: 60px; padding: 0; border-radius: 50%; justify-content: center; background: var(--spotify); color: #0b1d10; border: none; flex: none; }
 .plbtn:hover { filter: brightness(1.05); }
+.plbtn:active { transform: scale(.92); }
+.plbtn svg { display: block; }
 body.has-player .toast { z-index: 30; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-weight: 600; font-size: 14px; }
 @media (prefers-reduced-motion: reduce) { .tile { transition: none; } .tile:hover, .tile:active { transform: none; } }
@@ -795,8 +797,14 @@ function spButtons() {
   if (on) pollPlayer();
 }
 // ---- In-board player bar ----
-let player = null, pollTimer = null;
+let player = null, pollTimer = null, hold = null;
+function setIcon(playing) {
+  $("plIconPlay").hidden = playing; $("plIconPause").hidden = !playing;
+  $("plToggle").setAttribute("aria-label", playing ? "Pause" : "Play");
+}
 function showPlayer(p) {
+  // Spotify reports the new state a moment late, so keep the icon the user just chose for a few seconds.
+  if (p && hold && Date.now() < hold.until && !!p.is_playing !== hold.playing) p = { ...p, is_playing: hold.playing };
   player = p;
   const item = p?.item, playing = !!p?.is_playing;
   const ch = item && state.items.find((x) => (spUri(x.spotify)?.uri) === item.uri);
@@ -806,8 +814,7 @@ function showPlayer(p) {
   $("plSub").textContent = item ? [artists, p.repeat_state === "track" ? "On repeat" : "", p.device?.name ? "on " + p.device.name : ""].filter(Boolean).join(" · ") : "Tap a character to start a song";
   const img = item?.album?.images?.slice(-2)[0]?.url || item?.images?.[0]?.url || "";
   $("plArt").hidden = !img; $("plBlank").hidden = !!img; if (img && $("plArt").src !== img) $("plArt").src = img;
-  $("plIconPlay").hidden = playing; $("plIconPause").hidden = !playing;
-  $("plToggle").setAttribute("aria-label", playing ? "Pause" : "Play");
+  setIcon(playing);
 }
 async function pollPlayer() {
   clearTimeout(pollTimer);
@@ -817,12 +824,14 @@ async function pollPlayer() {
 }
 $("plToggle").addEventListener("click", async () => {
   const playing = !!player?.is_playing;
-  if (player) showPlayer({ ...player, is_playing: !playing });
+  if (!playing && !player?.item) { toast("Tap a character to pick a song first."); return; }
+  hold = { playing: !playing, until: Date.now() + 4000 };
+  setIcon(!playing); if (player) player = { ...player, is_playing: !playing };
   try {
     if (playing) await spApi("/me/player/pause", { method: "PUT" });
     else if (player?.item) await spApi("/me/player/play" + (player.device?.id ? "?device_id=" + encodeURIComponent(player.device.id) : ""), { method: "PUT" });
-    else { toast("Tap a character to pick a song first."); return; }
   } catch (e) {
+    hold = null; setIcon(playing); if (player) player = { ...player, is_playing: playing };
     toast(e.status === 404 ? "Open Spotify on this device, then try again." : e.reason === "PREMIUM_REQUIRED" ? "Spotify needs Premium to control playback." : "Couldn't reach Spotify. Try again.");
   }
   setTimeout(pollPlayer, 600);
@@ -871,6 +880,7 @@ async function playOnSpotify(it) {
     const body = u.type === "track" || u.type === "episode" ? { uris: [u.uri] } : { context_uri: u.uri };
     await spApi("/me/player/play?device_id=" + encodeURIComponent(dev.id), { method: "PUT", body: JSON.stringify(body) });
     await setRepeat(repeatKind, dev.id).catch(async () => { await new Promise((r) => setTimeout(r, 700)); return setRepeat(repeatKind, dev.id); });
+    hold = { playing: true, until: Date.now() + 4000 }; setIcon(true);
     toast(`Playing ${it.name}'s song on repeat`);
     setTimeout(pollPlayer, 700);
   } catch (e) {
