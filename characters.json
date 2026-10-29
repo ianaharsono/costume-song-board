@@ -433,6 +433,18 @@
       "photo": "photos/princess-peach-mvu2ns0b.jpg",
       "order": 34,
       "createdAt": 1793310318045
+    },
+    {
+      "id": "ghost-mvu3c63r",
+      "name": "Ghost",
+      "songName": "Ghostbusters",
+      "spotify": "https://open.spotify.com/track/4moSfoSE5AtrVtSb4yta2Z",
+      "tags": [
+        "classic"
+      ],
+      "photo": "photos/ghost-mvu3c69p.jpg",
+      "order": 35,
+      "createdAt": 1793311456120
     }
   ]
 }
