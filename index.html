@@ -414,7 +414,8 @@ function render() {
       el.href = linkFor(it.spotify); el.target = "_blank"; el.rel = "noopener";
       el.addEventListener("click", (e) => {
         state.playing = it.id;
-        if (sp.connected()) { e.preventDefault(); playOnSpotify(it); }
+        if (sp.connected() && spotifyAwake()) { e.preventDefault(); playOnSpotify(it); }
+        else if (sp.connected()) { pendingPlay = null; pendingRepeat = it; showStarting(it); render(); }
         else render();
       });
     }
@@ -822,7 +823,9 @@ function showPlayer(p) {
 async function pollPlayer() {
   clearTimeout(pollTimer);
   if (!sp.connected()) return;
-  if (document.visibilityState === "visible") { try { showPlayer(await spApi("/me/player")); } catch {} }
+  if (document.visibilityState === "visible") {
+    try { const p = await spApi("/me/player"); lastPoll = { at: Date.now(), active: !!p?.device?.is_active }; showPlayer(p); } catch {}
+  }
   pollTimer = setTimeout(pollPlayer, 4000);
 }
 $("plToggle").addEventListener("click", async () => {
@@ -876,7 +879,8 @@ function showStarting(it) {
   const src = it.photo ? photoSrc(it) : "";
   $("plArt").hidden = !src; $("plBlank").hidden = !!src; if (src) $("plArt").src = src;
 }
-let pendingPlay = null;
+let pendingPlay = null, pendingRepeat = null, lastPoll = { at: 0, active: false };
+function spotifyAwake() { return lastPoll.active && Date.now() - lastPoll.at < 15000; }
 async function playOnSpotify(it, isRetry) {
   render();
   const u = spUri(it.spotify);
@@ -897,21 +901,19 @@ async function playOnSpotify(it, isRetry) {
     if (!sp.connected()) { toast("Spotify signed out. Tap Connect Spotify again."); pollPlayer(); return; }
     if (e.reason === "PREMIUM_REQUIRED") { toast("Spotify needs Premium to start songs from the board."); pollPlayer(); return; }
     if (isRetry) { toast("Spotify still isn't ready. Tap the character again."); pollPlayer(); return; }
-    if (e.reason === "NO_DEVICE" || e.reason === "NO_ACTIVE_DEVICE" || e.status === 404) {
-      // Spotify is asleep on this device. Wake the app, then start the song from here when you come back.
-      pendingPlay = it;
-      toast("Waking up Spotify. Come back here and the song starts.");
-      setTimeout(() => { if (openMode === "app") location.href = linkFor(it.spotify); else window.open(it.spotify, "_blank"); }, 400);
-      return;
-    }
-    toast(`Spotify didn't start the song (error ${e.status || "?"}${e.reason ? " " + e.reason : ""}). Tap again.`);
-    pollPlayer();
+    // Couldn't start it remotely: open the song in Spotify instead, and switch on repeat when you come back.
+    pendingRepeat = it; lastPoll.active = false;
+    if (openMode === "app") location.href = linkFor(it.spotify); else window.open(it.spotify, "_blank");
   }
 }
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible" || !sp.connected()) return;
-  if (pendingPlay) { const it = pendingPlay; pendingPlay = null; setTimeout(() => playOnSpotify(it, true), 500); }
-  else pollPlayer();
+  if (pendingPlay) { const it = pendingPlay; pendingPlay = null; setTimeout(() => playOnSpotify(it, true), 500); return; }
+  if (pendingRepeat) {
+    const it = pendingRepeat, u = spUri(it.spotify); pendingRepeat = null;
+    if (u) { hold = { playing: true, until: Date.now() + 6000, uri: u.uri }; setRepeat(u.type === "track" || u.type === "episode" ? "track" : "context").catch(() => {}); }
+  }
+  pollPlayer();
 });
 $("spConnect").addEventListener("click", () => spLogin().catch(() => toast("Couldn't start Spotify sign-in.")));
 $("spPause").addEventListener("click", async () => {
