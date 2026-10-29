@@ -37,6 +37,18 @@
       "photo": "photos/rapunzel-mvtx3l04.jpg",
       "order": 2,
       "createdAt": 1793300184780
+    },
+    {
+      "id": "huntrix-mvtx8kju",
+      "name": "Huntrix",
+      "songName": "Golden",
+      "spotify": "https://open.spotify.com/track/1CPZ5BxNNd0n0nF4Orb9JS",
+      "tags": [
+        "movies"
+      ],
+      "photo": "photos/huntrix-mvtx8kkf.jpg",
+      "order": 3,
+      "createdAt": 1793301210393
     }
   ]
 }
