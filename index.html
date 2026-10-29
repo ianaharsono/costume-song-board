@@ -145,6 +145,16 @@ input[type=text], input[type=url] { font: 16px var(--body); padding: 11px 12px; 
 .spbtn { border-color: var(--spotify); }
 #spConnect { background: var(--spotify); color: #0b1d10; }
 .sprow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+body.gated { overflow: hidden; }
+.gate { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: grid; place-items: center; overflow-y: auto;
+  padding-block: calc(24px + env(safe-area-inset-top, 0px)) calc(24px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.gatecard { width: min(420px, 100%); display: grid; gap: 14px; justify-items: center; text-align: center; }
+.gatelogo { color: var(--spotify); }
+.gatecard h2 { font-family: var(--display); font-weight: 800; font-size: clamp(26px, 6vw, 34px); margin: 0; text-wrap: balance; }
+.gatecard p { margin: 0; color: var(--muted); max-width: 40ch; }
+.gatebtn { background: var(--spotify) !important; border-color: var(--spotify) !important; color: #0b1d10 !important; font-size: 17px; padding: 14px 28px; }
+.gatesmall { font-size: 13px; }
 body.has-player { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
 .player { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--surface); border-top: 1.5px solid var(--line); box-shadow: 0 -6px 24px rgba(20, 15, 40, .12);
   padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
@@ -300,6 +310,15 @@ img { max-width: 100%; }
     </div></div>
   </form>
 </dialog>
+<div class="gate" id="gate" hidden role="dialog" aria-modal="true" aria-labelledby="gateTitle">
+  <div class="gatecard">
+    <div class="gatelogo" aria-hidden="true"><svg viewBox="0 0 24 24" width="56" height="56"><circle cx="12" cy="12" r="12" fill="currentColor"/><path d="M6.5 9.3c3.8-1.1 8-.8 11.2 1M7 12.4c3.1-.9 6.5-.6 9.2.9M7.5 15.3c2.5-.7 5.2-.5 7.3.7" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></div>
+    <h2 id="gateTitle">Connect Spotify Premium</h2>
+    <p id="gateText"></p>
+    <button type="button" class="primary gatebtn" id="gateBtn">Connect Spotify</button>
+    <p class="gatesmall">You'll log in on Spotify's site, then come right back here.</p>
+  </div>
+</div>
 <div class="player" id="player" hidden>
   <div class="plinner">
     <img id="plArt" class="plart" alt="" hidden>
@@ -790,10 +809,13 @@ const sp = {
   connected() { return !!(this.clientId && this.tok?.refresh_token); },
   save(t) { this.tok = t; lsSet("spTok", t ? JSON.stringify(t) : null); spButtons(); },
 };
+// Spotify no longer tells apps which plan an account has, so an account counts as Premium until Spotify refuses a playback command for needing Premium.
+function spPremium() { return sp.connected() && sp.tok?.product !== "free"; }
 function spButtons() {
-  $("spConnect").hidden = !sp.clientId || sp.connected();
+  $("spConnect").hidden = true;
   $("spPause").hidden = true;
-  const on = sp.connected();
+  showGate();
+  const on = spPremium();
   $("player").hidden = !on; document.body.classList.toggle("has-player", on);
   if (on) pollPlayer();
 }
@@ -856,19 +878,45 @@ $("plToggle").addEventListener("click", async () => {
   setTimeout(pollPlayer, 600);
 });
 const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-async function spLogin() {
+// ---- Blocker: each device must connect a Spotify Premium account before using the board ----
+function showGate() {
+  const need = !!sp.clientId && !spPremium();
+  $("gate").hidden = !need; document.body.classList.toggle("gated", need);
+  if (!need) return;
+  const free = sp.connected() && sp.tok?.product === "free";
+  const unknown = false;
+  $("gateTitle").textContent = free ? "This Spotify account isn't Premium" : unknown ? "Reconnect Spotify" : "Connect Spotify Premium";
+  $("gateText").textContent = free
+    ? "Songs on this board play through Spotify Premium. Log in with a Premium account to keep going."
+    : unknown
+      ? "Spotify needs to confirm this account has Premium. Tap below and log in again."
+      : "Songs on this board play through Spotify, and Spotify only allows this with a Premium account. You only do this once on each phone or tablet.";
+  $("gateBtn").textContent = free ? "Log in with a different account" : "Connect Spotify";
+  $("gateBtn").dataset.switch = free ? "1" : "";
+}
+// Right after connecting, re-send the current repeat setting (changes nothing) to see whether Spotify allows playback control.
+async function spCheckPremium() {
+  if (!sp.connected()) return;
+  try {
+    const p = await spApi("/me/player");
+    if (p?.device) await spApi("/me/player/repeat?state=" + (p.repeat_state || "off"), { method: "PUT" });
+  } catch {}
+}
+async function spLogin(switchAccount) {
+  if (switchAccount) sp.save(null);
   const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
   const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
   const stateStr = b64url(crypto.getRandomValues(new Uint8Array(12)));
   lsSet("spVerifier", verifier); lsSet("spState", stateStr);
   const p = new URLSearchParams({ client_id: sp.clientId, response_type: "code", redirect_uri: SP_REDIRECT, scope: SP_SCOPES, code_challenge_method: "S256", code_challenge: challenge, state: stateStr });
+  if (switchAccount) p.set("show_dialog", "true");
   location.href = "https://accounts.spotify.com/authorize?" + p;
 }
 async function spTokenRequest(params) {
   const r = await fetch("https://accounts.spotify.com/api/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: sp.clientId, ...params }) });
   if (!r.ok) { const e = new Error("token"); e.status = r.status; throw e; }
   const t = await r.json();
-  return { access_token: t.access_token, refresh_token: t.refresh_token || sp.tok?.refresh_token, expires_at: Date.now() + (t.expires_in - 60) * 1000 };
+  return { access_token: t.access_token, refresh_token: t.refresh_token || sp.tok?.refresh_token, expires_at: Date.now() + (t.expires_in - 60) * 1000, product: sp.tok?.product };
 }
 async function spAccess() {
   if (sp.tok?.access_token && Date.now() < sp.tok.expires_at) return sp.tok.access_token;
@@ -878,7 +926,11 @@ async function spAccess() {
 }
 async function spApi(path, opts = {}) {
   const r = await fetch("https://api.spotify.com/v1" + path, { ...opts, headers: { Authorization: "Bearer " + (await spAccess()), ...(opts.body ? { "Content-Type": "application/json" } : {}) } });
-  if (!r.ok) { let reason = ""; try { reason = (await r.json())?.error?.reason || ""; } catch {} const e = new Error("spotify " + r.status); e.status = r.status; e.reason = reason; throw e; }
+  if (!r.ok) {
+    let reason = ""; try { reason = (await r.json())?.error?.reason || ""; } catch {}
+    if (reason === "PREMIUM_REQUIRED" && sp.tok) sp.save({ ...sp.tok, product: "free" });
+    const e = new Error("spotify " + r.status); e.status = r.status; e.reason = reason; throw e;
+  }
   return r.status === 204 || r.headers.get("content-length") === "0" ? null : r.json().catch(() => null);
 }
 function spUri(url) { const m = /open\.spotify\.com\/(track|album|playlist|episode|artist)\/([A-Za-z0-9]+)/.exec(url || ""); return m ? { type: m[1], uri: `spotify:${m[1]}:${m[2]}` } : null; }
@@ -947,6 +999,7 @@ document.addEventListener("visibilitychange", () => {
   pollPlayer();
 });
 $("spConnect").addEventListener("click", () => spLogin().catch(() => toast("Couldn't start Spotify sign-in.")));
+$("gateBtn").addEventListener("click", () => spLogin(!!$("gateBtn").dataset.switch).catch(() => toast("Couldn't start Spotify sign-in.")));
 $("spPause").addEventListener("click", async () => {
   try { await spApi("/me/player/pause", { method: "PUT" }); state.playing = null; render(); toast("Paused"); }
   catch (e) { toast(e.status === 404 ? "Nothing is playing right now." : "Couldn't pause. Try again in Spotify."); }
@@ -963,7 +1016,11 @@ async function spInit() {
     if (q.get("error")) toast("Spotify sign-in was cancelled.");
     else if (q.get("state") !== lsGet("spState")) toast("Spotify sign-in didn't match. Try Connect Spotify again.");
     else {
-      try { sp.save(await spTokenRequest({ grant_type: "authorization_code", code: q.get("code"), redirect_uri: SP_REDIRECT, code_verifier: lsGet("spVerifier") })); toast("Spotify connected. Songs now play on repeat."); }
+      try {
+        sp.save(await spTokenRequest({ grant_type: "authorization_code", code: q.get("code"), redirect_uri: SP_REDIRECT, code_verifier: lsGet("spVerifier") }));
+        await spCheckPremium();
+        if (spPremium()) toast("Spotify connected. Songs now play on repeat.");
+      }
       catch { toast("Couldn't finish connecting Spotify. Try again."); }
     }
     lsSet("spVerifier", null); lsSet("spState", null);
