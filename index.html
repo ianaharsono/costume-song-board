@@ -159,7 +159,12 @@ body.gated { overflow: hidden; }
 .gatebtn { background: var(--spotify) !important; border-color: var(--spotify) !important; color: #0b1d10 !important; font-size: 17px; padding: 14px 28px; }
 .gatesmall { font-size: 13px; }
 .cell { position: relative; display: grid; min-width: 0; }
-.tileacts { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 8px; z-index: 2; }
+/* Overlay covers just the square photo: queue top-right, play bottom-left, diagonally apart */
+.tileacts { position: absolute; top: 0; left: 0; right: 0; aspect-ratio: 1 / 1; max-width: 100%; z-index: 2; pointer-events: none; }
+.tileacts .act { position: absolute; pointer-events: auto; }
+.tileacts .act-queue { top: 10px; right: 10px; }
+.tileacts .act-play { bottom: 10px; left: 10px; width: 50px; height: 50px; }
+.tileacts .act-play svg { width: 24px; height: 24px; }
 .act { width: 42px; height: 42px; padding: 0; border-radius: 50%; justify-content: center; border: none; box-shadow: 0 2px 10px rgba(15, 10, 30, .28); }
 .act-play { background: var(--spotify); color: #0b1d10; }
 .act-queue { background: rgba(255, 255, 255, .94); color: #1d1a2b; }
