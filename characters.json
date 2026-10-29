@@ -312,6 +312,18 @@
       "photo": "photos/darth-vader-mvu1sipd.jpg",
       "order": 24,
       "createdAt": 1793308859629
+    },
+    {
+      "id": "avengers-mvu1wkle",
+      "name": "Avengers",
+      "songName": "Avengers Theme",
+      "spotify": "https://open.spotify.com/track/1EWGuFGjNkP4KxRxSoWifM",
+      "tags": [
+        "superhero"
+      ],
+      "photo": "photos/avengers-mvu1wkmc.jpg",
+      "order": 25,
+      "createdAt": 1793309048811
     }
   ]
 }
