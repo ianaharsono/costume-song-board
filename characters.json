@@ -469,6 +469,18 @@
       "photo": "photos/dolly-parton-mvu3sn6p.jpg",
       "order": 37,
       "createdAt": 1793312224849
+    },
+    {
+      "id": "superman-mvu3wpm2",
+      "name": "Superman",
+      "songName": "Superman Returns",
+      "spotify": "https://open.spotify.com/track/1DEyNBgRKrfw8x3eLxlyQa",
+      "tags": [
+        "superhero"
+      ],
+      "photo": "photos/superman-mvu3wpux.jpg",
+      "order": 38,
+      "createdAt": 1793312414742
     }
   ]
 }
