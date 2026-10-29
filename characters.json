@@ -337,6 +337,18 @@
       "photo": "photos/incredibles-mvu1y3o3.jpg",
       "order": 26,
       "createdAt": 1793309120044
+    },
+    {
+      "id": "elphaba-mvu1zfah",
+      "name": "Elphaba",
+      "songName": "Defying Gravity",
+      "spotify": "https://open.spotify.com/track/5QMrH5nszZZR3nefIj6Mar",
+      "tags": [
+        "movies"
+      ],
+      "photo": "photos/elphaba-mvu1zfah.jpg",
+      "order": 27,
+      "createdAt": 1793309181850
     }
   ]
 }
