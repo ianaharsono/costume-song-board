@@ -420,6 +420,19 @@
       "photo": "photos/yoshi-mvu2iei8.jpg",
       "order": 33,
       "createdAt": 1793310067400
+    },
+    {
+      "id": "princess-peach-mvu2nre0",
+      "name": "Princess Peach",
+      "songName": "Peach's Castle",
+      "spotify": "https://open.spotify.com/track/43RVkyK7yIVCnQPpr86Twh",
+      "tags": [
+        "game",
+        "princess"
+      ],
+      "photo": "photos/princess-peach-mvu2ns0b.jpg",
+      "order": 34,
+      "createdAt": 1793310318045
     }
   ]
 }
