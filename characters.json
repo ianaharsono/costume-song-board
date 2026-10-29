@@ -49,6 +49,19 @@
       "photo": "photos/huntrix-mvtx8kkf.jpg",
       "order": 3,
       "createdAt": 1793301210393
+    },
+    {
+      "id": "elsa-mvtxmp4f",
+      "name": "Elsa",
+      "songName": "Let It Go",
+      "spotify": "https://open.spotify.com/track/0qcr5FMsEO85NAQjrlDRKo",
+      "tags": [
+        "princess",
+        "disney"
+      ],
+      "photo": "photos/elsa-mvtxmp4f.jpg",
+      "order": 4,
+      "createdAt": 1793301869949
     }
   ]
 }
