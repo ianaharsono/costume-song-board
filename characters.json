@@ -213,6 +213,18 @@
       "photo": "photos/paw-patrol-mvu0pt02.jpg",
       "order": 16,
       "createdAt": 1793307053746
+    },
+    {
+      "id": "bluey-mvu0r3q3",
+      "name": "Bluey",
+      "songName": "Bluey Theme",
+      "spotify": "https://open.spotify.com/track/4I96vLmfztDLmMMNgwvTeg",
+      "tags": [
+        "tv"
+      ],
+      "photo": "photos/bluey-mvu0r3q3.jpg",
+      "order": 17,
+      "createdAt": 1793307114185
     }
   ]
 }
