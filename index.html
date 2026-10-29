@@ -806,7 +806,7 @@ function setIcon(playing) {
 function showPlayer(p) {
   // Spotify reports the new state a moment late, so keep the icon the user just chose for a few seconds.
   if (p && hold && Date.now() < hold.until) {
-    if (hold.uri && p.item?.uri !== hold.uri) return; // Spotify hasn't switched to the new song yet
+    if (hold.uri && p.item?.uri !== hold.uri) { setIcon(hold.playing); return; } // Spotify hasn't switched to the new song yet
     if (!!p.is_playing !== hold.playing) p = { ...p, is_playing: hold.playing };
   }
   player = p;
@@ -824,7 +824,20 @@ async function pollPlayer() {
   clearTimeout(pollTimer);
   if (!sp.connected()) return;
   if (document.visibilityState === "visible") {
-    try { const p = await spApi("/me/player"); lastPoll = { at: Date.now(), active: !!p?.device?.is_active }; showPlayer(p); } catch {}
+    let p, err = null;
+    try { p = await spApi("/me/player"); }
+    catch (e1) {
+      // Some Spotify developer apps can't read the full player state; the "currently playing" call still has the song and play state.
+      try { p = await spApi("/me/player/currently-playing"); if (p) p = { ...p, device: p.device || null }; }
+      catch (e2) { err = e2; }
+    }
+    if (err) {
+      if (!$("plSub").dataset.err) { $("plSub").textContent = `Can't read Spotify right now (error ${err.status || "?"}${err.reason ? " " + err.reason : ""})`; $("plSub").dataset.err = "1"; }
+    } else {
+      delete $("plSub").dataset.err;
+      lastPoll = { at: Date.now(), active: !!(p?.device?.is_active || p?.is_playing) };
+      showPlayer(p);
+    }
   }
   pollTimer = setTimeout(pollPlayer, 4000);
 }
