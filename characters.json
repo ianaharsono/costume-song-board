@@ -409,6 +409,18 @@
       "photo": "photos/addams-mvu2fenc.jpg",
       "order": 32,
       "createdAt": 1793309927457
+    },
+    {
+      "id": "yoshi-mvu2idsh",
+      "name": "Yoshi",
+      "songName": "Yoshi's Story",
+      "spotify": "https://open.spotify.com/track/7cp8oViAPwULMVKRtf2duR",
+      "tags": [
+        "game"
+      ],
+      "photo": "photos/yoshi-mvu2iei8.jpg",
+      "order": 33,
+      "createdAt": 1793310067400
     }
   ]
 }
