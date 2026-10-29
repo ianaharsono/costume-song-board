@@ -276,6 +276,18 @@
       "photo": "photos/toy-story-mvu1gwnh.jpg",
       "order": 21,
       "createdAt": 1793308318006
+    },
+    {
+      "id": "batman-mvu1pgud",
+      "name": "Batman",
+      "songName": "The Batman Theme",
+      "spotify": "https://open.spotify.com/track/50csT5Qb2qOF7lHdDQ1Sbx",
+      "tags": [
+        "superhero"
+      ],
+      "photo": "photos/batman-mvu1pgud.jpg",
+      "order": 22,
+      "createdAt": 1793308717583
     }
   ]
 }
