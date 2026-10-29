@@ -94,7 +94,7 @@ select { font: 600 14px var(--body); padding: 8px 12px; border: 1.5px solid var(
 .tile:hover { transform: translateY(-2px); }
 .tile:active { transform: scale(.97); }
 .tile.playing { border-color: var(--glow); box-shadow: 0 0 0 4px var(--glow); }
-.photo { aspect-ratio: 1 / 1; width: 100%; max-width: 100%; object-fit: cover; display: block; background: var(--line); }
+.photo { aspect-ratio: 1 / 1; width: 100%; max-width: 100%; object-fit: cover; display: block; background: #fff; }
 .nophoto { aspect-ratio: 1/1; display: grid; place-items: center; background: var(--line); color: var(--muted); font-family: var(--display); font-size: 40px; }
 .label { padding: 10px 12px 12px; display: grid; gap: 2px; min-width: 0; }
 .name { font-family: var(--display); font-weight: 800; font-size: 20px; line-height: 1.1; overflow-wrap: anywhere; }
@@ -133,6 +133,7 @@ input[type=text], input[type=url] { font: 16px var(--body); padding: 11px 12px; 
 .zoomrow { display: flex; align-items: center; gap: 10px; width: min(100%, 340px); justify-self: center; color: var(--muted); font-weight: 700; }
 .zoomrow input { flex: 1; accent-color: var(--accent); }
 .pick .preview { width: 96px; height: 96px; border-radius: 14px; object-fit: cover; background: var(--line); }
+.pick img.preview { background: #fff; }
 .err { color: var(--danger); font-size: 14px; min-height: 1em; margin: 0; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: space-between; align-items: center; }
 .row .right { display: flex; gap: 8px; margin-left: auto; }
@@ -445,14 +446,16 @@ async function shrink(file) {
   if (!bmp) return file;
   const max = 1000, scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
   const c = document.createElement("canvas"); c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
-  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+  const ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(bmp, 0, 0, c.width, c.height);
   return await new Promise((r) => c.toBlob((b) => r(b || file), "image/jpeg", 0.85));
 }
 
 async function exportSquareCenter(file) {
   const im = await loadImage(URL.createObjectURL(file), false);
   const side = Math.min(im.naturalWidth, im.naturalHeight), c = document.createElement("canvas"); c.width = OUT; c.height = OUT;
-  c.getContext("2d").drawImage(im, (im.naturalWidth - side) / 2, (im.naturalHeight - side) / 2, side, side, 0, 0, OUT, OUT);
+  const ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, OUT, OUT);
+  ctx.drawImage(im, (im.naturalWidth - side) / 2, (im.naturalHeight - side) / 2, side, side, 0, 0, OUT, OUT);
   return new Promise((r) => c.toBlob((b) => r(b || file), "image/jpeg", 0.88));
 }
 function renderDraftTags() {
@@ -504,7 +507,7 @@ function drawCrop() {
   clampCrop();
   const ctx = c.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.imageSmoothingQuality = "high";
-  ctx.clearRect(0, 0, crop.F, crop.F);
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, crop.F, crop.F);
   ctx.drawImage(crop.img, crop.x, crop.y, crop.img.naturalWidth * crop.s, crop.img.naturalHeight * crop.s);
   $("zoom").value = String(crop.s / crop.min);
 }
@@ -531,6 +534,7 @@ function closeCrop() { $("cropWrap").hidden = true; crop.pointers.clear(); crop.
 function exportCrop() {
   const c = document.createElement("canvas"); c.width = OUT; c.height = OUT;
   const k = OUT / crop.F, ctx = c.getContext("2d"); ctx.imageSmoothingQuality = "high";
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, OUT, OUT);
   ctx.drawImage(crop.img, crop.x * k, crop.y * k, crop.img.naturalWidth * crop.s * k, crop.img.naturalHeight * crop.s * k);
   return new Promise((r, j) => c.toBlob((b) => (b ? r(b) : j(new Error("crop"))), "image/jpeg", 0.88));
 }
