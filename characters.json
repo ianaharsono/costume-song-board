@@ -1,6 +1,7 @@
 {
   "characters": [
     {
+      "id": "elmo-0",
       "name": "Elmo",
       "songName": "Elmo's World",
       "spotify": "https://open.spotify.com/track/2RugYIdiYG7dl5cE4zS6fh",
@@ -8,22 +9,24 @@
         "monster",
         "muppet"
       ],
+      "photo": "photos/elmo-mvtx3551.jpg",
       "order": 0,
-      "createdAt": 1793299583634,
-      "photo": ""
+      "createdAt": 1793299583634
     },
     {
+      "id": "harry-potter-1",
       "name": "Harry Potter",
       "songName": "Hedwig's Theme",
       "spotify": "https://open.spotify.com/track/1n8NKQRg8LVHy7oUhUgbFF",
       "tags": [
         "movies"
       ],
+      "photo": "",
       "order": 1,
-      "createdAt": 1793300108950,
-      "photo": ""
+      "createdAt": 1793300108950
     },
     {
+      "id": "rapunzel-2",
       "name": "Rapunzel",
       "songName": "When Will My Life Begin?",
       "spotify": "https://open.spotify.com/track/03xWMkKEbeO4SnylA53ipj",
@@ -31,9 +34,9 @@
         "disney",
         "princess"
       ],
+      "photo": "",
       "order": 2,
-      "createdAt": 1793300184780,
-      "photo": ""
+      "createdAt": 1793300184780
     }
   ]
 }
