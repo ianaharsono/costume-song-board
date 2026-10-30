@@ -779,6 +779,7 @@ function openSpotifyLink(it) {
 }
 function tapPlay(it, e) {
   if (songBroken(it)) { e?.preventDefault(); e?.stopPropagation(); toast(brokenMsg(it)); return; }
+  lastTapAt = Date.now();
   state.playing = it.id;
   if (state.queue.includes(it.id)) { state.queue = state.queue.filter((x) => x !== it.id); saveQueue(); }
   const isLink = e?.currentTarget?.tagName === "A";
@@ -1146,14 +1147,19 @@ async function checkSong(it, force) {
   if (r === "bad") logSp(`${it.name}: Spotify doesn't recognize this song link`);
   return r;
 }
-let checkingSongs = false;
+let checkingSongs = false, lastTapAt = 0;
 async function checkAllSongs() {
   if (checkingSongs || !sp.connected()) return;
   checkingSongs = true;
   try {
     const todo = state.items.filter((it) => { const u = spUri(it.spotify); const c = u && linkCheck[u.uri]; return u && !(c && Date.now() - c.at < CHECK_TTL); });
     let changed = false;
-    for (const it of todo) { const before = songBroken(it); const r = await checkSong(it); if (r == null) break; if (songBroken(it) !== before) changed = true; await sleep(150); }
+    // Slow and in the background so the checks never crowd out a tap on a song (Spotify limits requests per minute).
+    for (const it of todo) {
+      while (Date.now() - lastTapAt < 15000) await sleep(2000);
+      const before = songBroken(it); const r = await checkSong(it); if (r == null) break; if (songBroken(it) !== before) changed = true;
+      await sleep(2500);
+    }
     if (changed) render();
     const bad = state.items.filter(songBroken);
     if (bad.length) toast(bad.length === 1 ? brokenMsg(bad[0]) : `${bad.length} song links don't work on Spotify: ${bad.map((x) => x.name).join(", ")}. Tap Edit to paste new links.`);
