@@ -498,7 +498,7 @@ function render() {
     el.className = "tile" + (state.playing === it.id && !state.editing ? " playing" : "");
     if (state.editing) { el.type = "button"; el.addEventListener("click", (e) => { if (!e.target.closest(".editbar")) openEditor(it); }); }
     else {
-      el.href = linkFor(it.spotify); el.target = "_blank"; el.rel = "noopener";
+      el.href = songLink(it); el.target = "_blank"; el.rel = "noopener";
       el.addEventListener("click", (e) => tapPlay(it, e));
     }
     el.setAttribute("aria-label", state.editing ? `Edit ${it.name}` : `Play ${it.name}'s song`);
@@ -526,7 +526,7 @@ function render() {
     if (state.editing) { g.append(el); return; }
     const cell = document.createElement("div"); cell.className = "cell";
     const acts = document.createElement("div"); acts.className = "tileacts";
-    const pb = document.createElement("a"); pb.href = linkFor(it.spotify); pb.target = "_blank"; pb.rel = "noopener"; pb.className = "btn act act-play"; pb.innerHTML = ICON_PLAY; pb.setAttribute("aria-label", `Play ${it.name}'s song now`);
+    const pb = document.createElement("a"); pb.href = songLink(it); pb.target = "_blank"; pb.rel = "noopener"; pb.className = "btn act act-play"; pb.innerHTML = ICON_PLAY; pb.setAttribute("aria-label", `Play ${it.name}'s song now`);
     pb.addEventListener("click", (e) => tapPlay(it, e));
     const inQ = qi >= 0;
     const qb = document.createElement("button"); qb.type = "button"; qb.className = "act act-queue" + (inQ ? " on" : ""); qb.innerHTML = inQ ? ICON_QUEUED : ICON_QUEUE;
@@ -774,8 +774,8 @@ function claimPhone() {
 function openSpotifyLink(it) {
   claimPhone();
   logSp("opened Spotify app with " + (it.name || "song"));
-  if (window.__testOpen) return window.__testOpen(linkFor(it.spotify));
-  window.open(linkFor(it.spotify), "_blank"); // new tab, so the board stays put if Spotify's site opens instead of the app
+  if (window.__testOpen) return window.__testOpen(songLink(it));
+  window.open(songLink(it), "_blank"); // new tab, so the board stays put if Spotify's site opens instead of the app
 }
 function tapPlay(it, e) {
   if (songBroken(it)) { e?.preventDefault(); e?.stopPropagation(); toast(brokenMsg(it)); return; }
@@ -860,6 +860,10 @@ async function deleteFile(path, message) {
   const f = await gh(path + "?ref=main");
   return gh(path, { method: "DELETE", body: JSON.stringify({ message, sha: f.sha, branch: "main" }) });
 }
+function songLink(it) {
+  if (it.spotify) return linkFor(it.spotify);
+  return "https://open.spotify.com/search/" + encodeURIComponent(it.spotifySearch || it.songName || it.name);
+}
 function withIds(list) { return list.map((x, i) => ({ ...x, id: x.id || (slug(x.name) + "-" + i) })); }
 async function loadFromGitHub() {
   const f = await gh("characters.json?ref=main");
@@ -868,7 +872,7 @@ async function loadFromGitHub() {
   return withIds(Array.isArray(d) ? d : d.characters || []);
 }
 async function saveAll(items, message) {
-  const clean = items.map(({ id, name, songName, spotify, tags, photo, order, createdAt }) => ({ id, name, songName: songName || "", spotify, tags: tags || [], photo: photo || "", order: order ?? 0, createdAt: createdAt ?? 0 }));
+  const clean = items.map(({ id, name, songName, spotify, spotifySearch, tags, photo, order, createdAt }) => ({ id, name, songName: songName || "", spotify: spotify || "", ...(spotify ? {} : spotifySearch ? { spotifySearch } : {}), tags: tags || [], photo: photo || "", order: order ?? 0, createdAt: createdAt ?? 0 }));
   const content = utf8ToB64(JSON.stringify({ characters: clean }, null, 2) + "\n");
   const r = await putFile("characters.json", content, message, fileSha);
   fileSha = r.content.sha;
@@ -921,6 +925,7 @@ async function start() {
   $("editToggle").hidden = false;
   await refresh(true);
   await spInit();
+  findSongs();
   checkAllSongs();
   // Pick up changes made on other devices: check when the page comes back into view, and every minute while it's open.
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refresh(); });
@@ -928,7 +933,43 @@ async function start() {
   setInterval(() => { if (document.visibilityState === "visible") refresh(); }, 60000);
 }
 // Reads straight from the repo, so new characters show up within seconds instead of waiting for the site to rebuild.
-let refreshing = false;
+let refreshing = false, lastFileJson = "";
+// ---- Characters added with a song search instead of a link ----
+// The board looks the song up through the connected Spotify account (first result), remembers it on this device,
+// and, when this device is connected to GitHub, saves the link into the character list for every device.
+const found = (() => { try { return JSON.parse(localStorage.getItem("songFind") || "{}"); } catch { return {}; } })();
+function applyFound(items) {
+  return items.map((x) => {
+    if (x.spotify || !x.spotifySearch) return x;
+    const f = found[x.spotifySearch];
+    return f ? { ...x, spotify: f.url, songName: x.songName || f.name } : x;
+  });
+}
+let finding = false;
+async function findSongs() {
+  if (finding || !sp.connected()) return;
+  const todo = state.items.filter((x) => !x.spotify && x.spotifySearch && !found[x.spotifySearch]);
+  const resolved = state.items.filter((x) => x.spotifySearch && found[x.spotifySearch]);
+  if (!todo.length && !(token && resolved.some((x) => x.spotifySearch))) return;
+  finding = true;
+  try {
+    for (const x of todo) {
+      try {
+        const r = await spApi("/search?" + new URLSearchParams({ q: x.spotifySearch, type: "track", limit: "1", market: "from_token" }));
+        const t = r?.tracks?.items?.[0];
+        if (t?.id) { found[x.spotifySearch] = { url: "https://open.spotify.com/track/" + t.id, name: t.name }; lsSet("songFind", JSON.stringify(found)); }
+        logSp(`found song for ${x.name}: ${t ? t.name + " · " + (t.artists || []).map((a) => a.name).join(", ") : "nothing"}`);
+      } catch (e) { logSp(`song search for ${x.name} failed (${e.reason || e.status})`); }
+      await sleep(400);
+    }
+    state.items = applyFound(state.items); render();
+    // Save the links for everyone when this device can write to GitHub.
+    if (token && state.items.some((x) => x.spotifySearch && x.spotify)) {
+      const next = state.items.map((x) => (x.spotifySearch && x.spotify ? (({ spotifySearch, ...rest }) => rest)(x) : x));
+      try { await saveAll(next, "Save found Spotify songs"); } catch {}
+    }
+  } finally { finding = false; }
+}
 async function refresh(first) {
   if (refreshing || ($("dlg").open && !first)) return;
   refreshing = true;
@@ -939,7 +980,8 @@ async function refresh(first) {
         .catch(() => fetch("characters.json", { cache: "no-cache" }).then((r) => r.json()));
       items = withIds(Array.isArray(d) ? d : d.characters || []);
     }
-    if (first || JSON.stringify(items) !== JSON.stringify(state.items)) { state.items = items; state.loaded = true; render(); if (!first) checkAllSongs(); }
+    const rawJson = JSON.stringify(items);
+    if (first || rawJson !== lastFileJson) { lastFileJson = rawJson; state.items = applyFound(items); state.loaded = true; render(); if (!first) checkAllSongs(); findSongs(); }
     $("status").hidden = true;
   } catch { if (first) showStatus("Couldn't load the characters. Reload the page to try again."); }
   finally { refreshing = false; }
@@ -1041,7 +1083,7 @@ $("plToggle").addEventListener("click", async (e) => {
   const playing = !!player?.is_playing && spotifyAwake();
   // On a phone, resuming a paused Spotify has to happen in the Spotify app: let this tap open it as a real link.
   if (IS_PHONE && !playing && !playingHere() && current) {
-    e.currentTarget.href = linkFor(current.spotify);
+    e.currentTarget.href = songLink(current);
     pendingPlay = current; showStarting(current); render(); claimPhone(); logSp("opened Spotify app with " + current.name);
     if (window.__testOpen) { e.preventDefault(); window.__testOpen(e.currentTarget.href); }
     return;
@@ -1250,7 +1292,7 @@ function showWake(it, msg) {
   $("plSub").textContent = "Tap ▶ in Spotify once, then come back";
   $("wakeText").innerHTML = msg ? "" : "Spotify opened the song but didn't start it. Tap <b>▶</b> in Spotify once, then come back. After that, taps here play without leaving the board.";
   if (msg) $("wakeText").textContent = msg;
-  $("wakeOpen").href = linkFor(it.spotify);
+  $("wakeOpen").href = songLink(it);
   $("wakeBar").hidden = false;
 }
 function hideWake() { $("wakeOpen").href = "https://open.spotify.com";  wakeFor = null; $("wakeBar").hidden = true; }
@@ -1345,7 +1387,7 @@ async function playOnSpotify(it, isRetry) {
   const seq = ++playSeq;
   render();
   const u = spUri(it.spotify);
-  if (!u) { window.open(it.spotify, "_blank"); return; }
+  if (!u) { openSpotifyLink(it); return; }
   showStarting(it);
   const repeatKind = repeatFor(u);
   try {

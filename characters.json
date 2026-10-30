@@ -786,14 +786,15 @@
     {
       "id": "ninja-63",
       "name": "Ninja",
-      "songName": "Kung Fu Fighting",
-      "spotify": "https://open.spotify.com/track/40NRm1ZLvZpUSCUXAGGZ8J",
+      "songName": "Ninja Re Bang Bang",
+      "spotify": "",
       "tags": [
         "classic"
       ],
       "photo": "",
       "order": 63,
-      "createdAt": 1793332663016
+      "createdAt": 1793332663016,
+      "spotifySearch": "Ninja Re Bang Bang Kyary Pamyu Pamyu"
     },
     {
       "id": "unicorn-64",
@@ -830,6 +831,231 @@
       "photo": "photos/ballerina-mvuhim2p.jpg",
       "order": 66,
       "createdAt": 1793332663019
+    },
+    {
+      "id": "mandalorian-1a18db592aa",
+      "name": "Mandalorian",
+      "songName": "The Mandalorian",
+      "spotify": "",
+      "tags": [
+        "movies",
+        "superhero"
+      ],
+      "photo": "",
+      "order": 67,
+      "createdAt": 1793378849450,
+      "spotifySearch": "The Mandalorian Ludwig Göransson"
+    },
+    {
+      "id": "unicorn-princess-1a18db592ab",
+      "name": "Unicorn Princess",
+      "songName": "My Angel Unicorn",
+      "spotify": "",
+      "tags": [
+        "princess"
+      ],
+      "photo": "",
+      "order": 68,
+      "createdAt": 1793378849451,
+      "spotifySearch": "My Angel Unicorn"
+    },
+    {
+      "id": "pokemon-1a18db592ac",
+      "name": "Pokemon",
+      "songName": "Pokérap",
+      "spotify": "",
+      "tags": [
+        "tv",
+        "game"
+      ],
+      "photo": "",
+      "order": 69,
+      "createdAt": 1793378849452,
+      "spotifySearch": "Pokérap Pokémon"
+    },
+    {
+      "id": "mario-bowser-jr-1a18db592ad",
+      "name": "Mario Bowser Jr",
+      "songName": "Peaches",
+      "spotify": "",
+      "tags": [
+        "game"
+      ],
+      "photo": "",
+      "order": 70,
+      "createdAt": 1793378849453,
+      "spotifySearch": "Peaches Jack Black"
+    },
+    {
+      "id": "astronaut-1a18db592ae",
+      "name": "Astronaut",
+      "songName": "Rocket Man",
+      "spotify": "",
+      "tags": [
+        "classic"
+      ],
+      "photo": "",
+      "order": 71,
+      "createdAt": 1793378849454,
+      "spotifySearch": "Rocket Man Elton John"
+    },
+    {
+      "id": "star-wars-stormtrooper-1a18db592af",
+      "name": "Star Wars Stormtrooper",
+      "songName": "The Imperial March",
+      "spotify": "https://open.spotify.com/track/2bw4WgXyXP90hIex7ur58y",
+      "tags": [
+        "movies"
+      ],
+      "photo": "",
+      "order": 72,
+      "createdAt": 1793378849455
+    },
+    {
+      "id": "hermione-1a18db592b0",
+      "name": "Hermione",
+      "songName": "Harry's Wondrous World",
+      "spotify": "",
+      "tags": [
+        "movies"
+      ],
+      "photo": "",
+      "order": 73,
+      "createdAt": 1793378849456,
+      "spotifySearch": "Harry's Wondrous World John Williams"
+    },
+    {
+      "id": "army-1a18db592b1",
+      "name": "Army",
+      "songName": "The Army Goes Rolling Along",
+      "spotify": "",
+      "tags": [
+        "classic"
+      ],
+      "photo": "",
+      "order": 74,
+      "createdAt": 1793378849457,
+      "spotifySearch": "The Army Goes Rolling Along"
+    },
+    {
+      "id": "iron-man-1a18db592b2",
+      "name": "Iron Man",
+      "songName": "Iron Man",
+      "spotify": "",
+      "tags": [
+        "superhero"
+      ],
+      "photo": "",
+      "order": 75,
+      "createdAt": 1793378849458,
+      "spotifySearch": "Iron Man Black Sabbath"
+    },
+    {
+      "id": "race-car-driver-1a18db592b3",
+      "name": "Race Car Driver",
+      "songName": "Life Is a Highway",
+      "spotify": "",
+      "tags": [
+        "movies",
+        "disney"
+      ],
+      "photo": "",
+      "order": 76,
+      "createdAt": 1793378849459,
+      "spotifySearch": "Life Is a Highway Rascal Flatts"
+    },
+    {
+      "id": "chicken-1a18db592b4",
+      "name": "Chicken",
+      "songName": "Chicken Dance",
+      "spotify": "",
+      "tags": [
+        "classic"
+      ],
+      "photo": "",
+      "order": 77,
+      "createdAt": 1793378849460,
+      "spotifySearch": "Chicken Dance"
+    },
+    {
+      "id": "clown-1a18db592b5",
+      "name": "Clown",
+      "songName": "Entry of the Gladiators",
+      "spotify": "",
+      "tags": [
+        "classic"
+      ],
+      "photo": "",
+      "order": 78,
+      "createdAt": 1793378849461,
+      "spotifySearch": "Entry of the Gladiators Fučík"
+    },
+    {
+      "id": "axolotl-1a18db592b6",
+      "name": "Axolotl",
+      "songName": "",
+      "spotify": "",
+      "tags": [
+        "classic"
+      ],
+      "photo": "",
+      "order": 79,
+      "createdAt": 1793378849462,
+      "spotifySearch": "axolotl song for kids"
+    },
+    {
+      "id": "football-player-1a18db592b7",
+      "name": "Football Player",
+      "songName": "NFL on FOX Theme",
+      "spotify": "",
+      "tags": [
+        "sports"
+      ],
+      "photo": "",
+      "order": 80,
+      "createdAt": 1793378849463,
+      "spotifySearch": "NFL on Fox theme"
+    },
+    {
+      "id": "harley-quinn-1a18db592b8",
+      "name": "Harley Quinn",
+      "songName": "Ballroom Blitz",
+      "spotify": "",
+      "tags": [
+        "superhero"
+      ],
+      "photo": "",
+      "order": 81,
+      "createdAt": 1793378849464,
+      "spotifySearch": "Ballroom Blitz Sweet"
+    },
+    {
+      "id": "aladdin-1a18db592b9",
+      "name": "Aladdin",
+      "songName": "Friend Like Me",
+      "spotify": "",
+      "tags": [
+        "disney",
+        "movies"
+      ],
+      "photo": "",
+      "order": 82,
+      "createdAt": 1793378849465,
+      "spotifySearch": "Friend Like Me Robin Williams Aladdin"
+    },
+    {
+      "id": "mermaid-1a18db592ba",
+      "name": "Mermaid",
+      "songName": "Under the Sea",
+      "spotify": "",
+      "tags": [
+        "disney",
+        "princess"
+      ],
+      "photo": "",
+      "order": 83,
+      "createdAt": 1793378849466,
+      "spotifySearch": "Under the Sea Samuel E. Wright"
     }
   ]
 }
