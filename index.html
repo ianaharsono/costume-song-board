@@ -1284,15 +1284,25 @@ async function verifyPlaying(it, u, devId, body, seq) {
     if (seq !== playSeq) return;
     if (p?.is_playing && p.item) return; // playing with a song loaded
     if (attempt === 0) {
-      logSp(`${it.name}: Spotify said OK but isn't playing. Sending again.`);
-      try { await spApi("/me/player/play" + (devId ? "?device_id=" + encodeURIComponent(devId) : ""), { method: "PUT", body: JSON.stringify(body) }); } catch { break; }
+      // A device Spotify still lists can stop listening (the app was closed or the computer slept).
+      // Handing playback to it again usually wakes it, then the song is sent once more.
+      logSp(`${it.name}: Spotify said OK but isn't playing. Waking the device and sending again.`);
+      try {
+        if (devId) { await spApi("/me/player", { method: "PUT", body: JSON.stringify({ device_ids: [devId], play: false }) }).catch(() => {}); await sleep(800); }
+        await spApi("/me/player/play" + (devId ? "?device_id=" + encodeURIComponent(devId) : ""), { method: "PUT", body: JSON.stringify(body) });
+      } catch { break; }
     }
   }
   if (seq !== playSeq) return;
   hold = null; lastPlayOk = 0; lastPoll.active = false;
   if (await checkSong(it, true) === "bad") { hideWake(); state.playing = null; render(); toast(brokenMsg(it)); pollPlayer(); return; }
   if (seq !== playSeq) return;
-  showWake(it, `Spotify accepted ${it.name}'s song but didn't play it. Tap Open Spotify to play it there. If it never plays, the song may not be available in your country.`);
+  // Forget this device so the next tap looks up which devices are really there.
+  knownDevice = null;
+  const where = devNames[devId] || "your other device";
+  showWake(it, IS_PHONE
+    ? `Spotify accepted ${it.name}'s song but didn't play it. Tap Open Spotify to play it there.`
+    : `Spotify sent ${it.name}'s song to ${where}, but Spotify there isn't responding. Open the Spotify app on ${where} (or choose this computer in Spotify's devices list), then tap the character again.`);
   pollPlayer();
 }
 async function playOnSpotify(it, isRetry) {
