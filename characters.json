@@ -758,12 +758,12 @@
     {
       "id": "shark-61",
       "name": "Shark",
-      "songName": "Baby Shark",
-      "spotify": "https://open.spotify.com/track/3ULkqRMNEabAFBPgh3vbm1",
+      "songName": "Baby Shark Halloween",
+      "spotify": "https://open.spotify.com/track/6si6emFKsB40Ndj9A1hYSQ",
       "tags": [
-        "classic"
+        "animal"
       ],
-      "photo": "",
+      "photo": "photos/shark-mvvfdwmz.jpg",
       "order": 61,
       "createdAt": 1793332663014
     },
