@@ -887,13 +887,12 @@
     {
       "id": "astronaut-1a18db592ae",
       "name": "Astronaut",
-      "songName": "Rocket Man",
-      "spotify": "",
-      "spotifySearch": "Rocket Man Elton John",
+      "songName": "Astronaut Song",
+      "spotify": "https://open.spotify.com/track/6xtjeyJirXfAD5zl7yQvYk",
       "tags": [
         "classic"
       ],
-      "photo": "",
+      "photo": "photos/astronaut-mvve8a6s.jpg",
       "order": 71,
       "createdAt": 1793378849454
     },
