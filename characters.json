@@ -732,6 +732,104 @@
       "photo": "",
       "order": 58,
       "createdAt": 1793332627979
+    },
+    {
+      "id": "pirate-59",
+      "name": "Pirate",
+      "songName": "He's a Pirate",
+      "spotify": "https://open.spotify.com/track/5vVFc7xUVJHslsPoS912S3",
+      "tags": [
+        "movies",
+        "disney",
+        "classic"
+      ],
+      "photo": "",
+      "order": 59,
+      "createdAt": 1793332663012
+    },
+    {
+      "id": "dinosaur-60",
+      "name": "Dinosaur",
+      "songName": "We Are The Dinosaurs",
+      "spotify": "https://open.spotify.com/track/04ZpkYZ9OPk1AH769995nr",
+      "tags": [
+        "classic"
+      ],
+      "photo": "",
+      "order": 60,
+      "createdAt": 1793332663013
+    },
+    {
+      "id": "shark-61",
+      "name": "Shark",
+      "songName": "Baby Shark",
+      "spotify": "https://open.spotify.com/track/3ULkqRMNEabAFBPgh3vbm1",
+      "tags": [
+        "classic"
+      ],
+      "photo": "",
+      "order": 61,
+      "createdAt": 1793332663014
+    },
+    {
+      "id": "police-62",
+      "name": "Police",
+      "songName": "Bad Boys (Theme from Cops)",
+      "spotify": "https://open.spotify.com/track/3gMsf1A4ewNI3NWDGVlmHb",
+      "tags": [
+        "classic"
+      ],
+      "photo": "",
+      "order": 62,
+      "createdAt": 1793332663015
+    },
+    {
+      "id": "ninja-63",
+      "name": "Ninja",
+      "songName": "Kung Fu Fighting",
+      "spotify": "https://open.spotify.com/track/40NRm1ZLvZpUSCUXAGGZ8J",
+      "tags": [
+        "classic"
+      ],
+      "photo": "",
+      "order": 63,
+      "createdAt": 1793332663016
+    },
+    {
+      "id": "unicorn-64",
+      "name": "Unicorn",
+      "songName": "The Unicorn",
+      "spotify": "https://open.spotify.com/track/6HvRHu2HtWgE720gG5v3wE",
+      "tags": [
+        "classic"
+      ],
+      "photo": "",
+      "order": 64,
+      "createdAt": 1793332663017
+    },
+    {
+      "id": "fairy-65",
+      "name": "Fairy",
+      "songName": "Dance of the Sugar Plum Fairy",
+      "spotify": "https://open.spotify.com/track/4gKm5GHr5Jkls4k18kAbO3",
+      "tags": [
+        "classic"
+      ],
+      "photo": "",
+      "order": 65,
+      "createdAt": 1793332663018
+    },
+    {
+      "id": "ballerina-66",
+      "name": "Ballerina",
+      "songName": "Swan Lake",
+      "spotify": "https://open.spotify.com/track/2xizRhme7pYeITbH1NLLGt",
+      "tags": [
+        "classic"
+      ],
+      "photo": "",
+      "order": 66,
+      "createdAt": 1793332663019
     }
   ]
 }
