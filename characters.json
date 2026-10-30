@@ -1029,14 +1029,13 @@
     {
       "id": "aladdin-1a18db592b9",
       "name": "Aladdin",
-      "songName": "Friend Like Me",
-      "spotify": "",
-      "spotifySearch": "Friend Like Me Robin Williams Aladdin",
+      "songName": "One Jump Ahead",
+      "spotify": "https://open.spotify.com/track/4wN8Ov3kPZdkJ8XcYxYUGz",
       "tags": [
         "disney",
         "movies"
       ],
-      "photo": "",
+      "photo": "photos/aladdin-mvve2iv3.jpg",
       "order": 82,
       "createdAt": 1793378849465
     },
