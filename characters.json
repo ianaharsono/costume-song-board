@@ -1043,6 +1043,18 @@
       "photo": "",
       "order": 83,
       "createdAt": 1793378849466
+    },
+    {
+      "id": "mario-bowser-mvvetv91",
+      "name": "Mario Bowser",
+      "songName": "Bowser's Theme",
+      "spotify": "https://open.spotify.com/track/2K2Em5Dwq5YfRJ3c9GvQLi",
+      "tags": [
+        "game"
+      ],
+      "photo": "photos/mario-bowser-mvvetvsq.jpg",
+      "order": 84,
+      "createdAt": 1793391224628
     }
   ]
 }
