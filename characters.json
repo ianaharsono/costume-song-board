@@ -542,6 +542,18 @@
       "photo": "photos/vampire-mvueu45w.jpg",
       "order": 43,
       "createdAt": 1793330768934
+    },
+    {
+      "id": "skeleton-mvuewyhu",
+      "name": "Skeleton",
+      "songName": "Spooky, Scary Skeletons",
+      "spotify": "https://open.spotify.com/track/3sMMOiantU5YEOr2MoHIR3",
+      "tags": [
+        "classic"
+      ],
+      "photo": "photos/skeleton-mvuewyim.jpg",
+      "order": 44,
+      "createdAt": 1793330901684
     }
   ]
 }
