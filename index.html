@@ -986,7 +986,11 @@ async function pollPlayer() {
 }
 $("plToggle").addEventListener("click", async () => {
   const playing = !!player?.is_playing;
-  if (!playing && !player?.item) { toast("Tap a character to pick a song first."); return; }
+  const current = state.items.find((x) => x.id === state.playing);
+  if (!playing && !player?.item) {
+    if (current) tapPlay(current, null); else toast("Tap a character to pick a song first.");
+    return;
+  }
   hold = { playing: !playing, until: Date.now() + 4000 };
   setIcon(!playing); if (player) player = { ...player, is_playing: !playing };
   try {
@@ -994,7 +998,9 @@ $("plToggle").addEventListener("click", async () => {
     else if (player?.item) await spApi("/me/player/play" + (player.device?.id ? "?device_id=" + encodeURIComponent(player.device.id) : ""), { method: "PUT" });
   } catch (e) {
     hold = null; setIcon(playing); if (player) player = { ...player, is_playing: playing };
-    toast(e.status === 404 ? "Open Spotify on this device, then try again." : e.reason === "PREMIUM_REQUIRED" ? "Spotify needs Premium to control playback." : "Couldn't reach Spotify. Try again.");
+    if (e.reason === "PREMIUM_REQUIRED") toast("Spotify needs Premium to control playback.");
+    else if (!playing && current) { lastPoll.active = false; openAndPlay(current, true); } // Spotify went to sleep: reopen the song in the app
+    else toast(`Spotify didn't respond (${e.reason || "error " + e.status}). Tap again.`);
   }
   setTimeout(pollPlayer, 600);
 });
@@ -1039,14 +1045,46 @@ async function spTokenRequest(params) {
   const t = await r.json();
   return { access_token: t.access_token, refresh_token: t.refresh_token || sp.tok?.refresh_token, expires_at: Date.now() + (t.expires_in - 60) * 1000, product: sp.tok?.product };
 }
-async function spAccess() {
-  if (sp.tok?.access_token && Date.now() < sp.tok.expires_at) return sp.tok.access_token;
-  try { sp.save(await spTokenRequest({ grant_type: "refresh_token", refresh_token: sp.tok.refresh_token })); }
-  catch (e) { if (e.status === 400 || e.status === 401) sp.save(null); throw e; }
+// Spotify replaces the refresh key every time it's used, so only one refresh may run at a time.
+let refreshing$ = null;
+async function spAccess(force) {
+  if (!force && sp.tok?.access_token && Date.now() < sp.tok.expires_at) return sp.tok.access_token;
+  if (!refreshing$) refreshing$ = (async () => {
+    try { sp.save(await spTokenRequest({ grant_type: "refresh_token", refresh_token: sp.tok.refresh_token })); }
+    catch (e) {
+      // Another tab may have refreshed already: pick up its newer key before giving up.
+      const stored = JSON.parse(lsGet("spTok") || "null");
+      if (stored?.refresh_token && stored.refresh_token !== sp.tok?.refresh_token) { sp.tok = stored; if (Date.now() < stored.expires_at) return; }
+      if ((e.status === 400 || e.status === 401)) {
+        await new Promise((r) => setTimeout(r, 500));
+        try { sp.save(await spTokenRequest({ grant_type: "refresh_token", refresh_token: sp.tok.refresh_token })); return; }
+        catch (e2) { if (e2.status === 400 || e2.status === 401) sp.save(null); throw e2; }
+      }
+      throw e;
+    }
+  })().finally(() => { refreshing$ = null; });
+  await refreshing$;
   return sp.tok.access_token;
 }
-async function spApi(path, opts = {}) {
-  const r = await fetch("https://api.spotify.com/v1" + path, { ...opts, headers: { Authorization: "Bearer " + (await spAccess()), ...(opts.body ? { "Content-Type": "application/json" } : {}) } });
+// When you switch back from the Spotify app, the phone needs a moment before its first network call goes through.
+let resumedAt = 0;
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") resumedAt = Date.now(); });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function spApi(path, opts = {}, attempt = 0) {
+  const wait = resumedAt + 700 - Date.now(); if (wait > 0) await sleep(wait);
+  let r;
+  try {
+    const { __force, ...fetchOpts } = opts;
+    r = await fetch("https://api.spotify.com/v1" + path, { ...fetchOpts, headers: { Authorization: "Bearer " + (await spAccess(attempt > 0 && opts.__force)), ...(opts.body ? { "Content-Type": "application/json" } : {}) } });
+  } catch (netErr) {
+    // Dropped connection (common right after switching apps): try twice more before reporting it.
+    if (attempt < 2 && sp.connected()) { await sleep(600 + attempt * 600); return spApi(path, opts, attempt + 1); }
+    const e = new Error("network"); e.status = 0; e.reason = "NETWORK"; throw e;
+  }
+  if ((r.status === 401 || r.status >= 500) && attempt < 2 && sp.connected()) {
+    await sleep(r.status === 401 ? 0 : 700);
+    return spApi(path, { ...opts, __force: r.status === 401 }, attempt + 1);
+  }
   if (!r.ok) {
     let reason = ""; try { reason = (await r.json())?.error?.reason || ""; } catch {}
     if (reason === "PREMIUM_REQUIRED" && sp.tok) sp.save({ ...sp.tok, product: "free" });
@@ -1093,7 +1131,8 @@ async function playOnSpotify(it, isRetry) {
     // If the device list can't be read, fall back to the device the player bar last saw, then to Spotify's active device.
     let devId = null;
     try {
-      const { devices = [] } = (await spApi("/me/player/devices")) || {};
+      let { devices = [] } = (await spApi("/me/player/devices")) || {};
+      if (!devices.length) { await sleep(1000); ({ devices = [] } = (await spApi("/me/player/devices")) || {}); }
       const dev = devices.find((d) => d.is_active) || devices.find((d) => /smartphone|tablet/i.test(d.type)) || devices[0];
       devId = dev?.id || null;
     } catch {}
@@ -1109,7 +1148,7 @@ async function playOnSpotify(it, isRetry) {
   } catch (e) {
     if (!sp.connected()) { toast("Spotify signed out. Tap Connect Spotify again."); pollPlayer(); return; }
     if (e.reason === "PREMIUM_REQUIRED") { toast("Spotify needs Premium to start songs from the board."); pollPlayer(); return; }
-    if (isRetry) { toast("Spotify still isn't ready. Tap the character again."); pollPlayer(); return; }
+    if (isRetry) { toast(`Spotify still isn't ready (${e.reason || "error " + e.status}). Tap the character again.`); pollPlayer(); return; }
     // Couldn't start it remotely: open the song in the Spotify app, and make sure it's playing when you come back.
     // Pause the current song first, since Spotify won't autoplay a linked song while another one is playing.
     lastPoll.active = false;
