@@ -313,7 +313,7 @@ img { max-width: 100%; }
       <button type="button" class="linkbtn" id="diagOpen">Spotify details</button>
       <button type="button" class="linkbtn" id="disconnectBtn" hidden>Disconnect GitHub</button>
     </div>
-    <p class="fhint" style="margin:0" id="buildTag">Board version: web-tab-2</p>
+    <p class="fhint" style="margin:0" id="buildTag">Board version: icon-1</p>
   </div>
 </dialog>
 
@@ -1727,7 +1727,7 @@ $("qClear").addEventListener("click", () => { state.queue = []; saveQueue(); ren
 $("qPlayNext").addEventListener("click", () => { $("queueDlg").close(); playNext(); });
 $("plNext").addEventListener("click", () => playNext());
 document.querySelector(".pltext").addEventListener("click", () => {
-  $("diagState").textContent = `Version web-tab-2 · ${IS_PHONE ? "phone" : "computer, plays in a browser tab"} · Awake: ${spotifyAwake() ? "yes" : "no"} · Phone known: ${knownDevice ? "yes" : "no"} · Last check: ${lastPoll.at ? Math.round((Date.now() - lastPoll.at) / 1000) + "s ago" : "never"}`;
+  $("diagState").textContent = `Version icon-1 · ${IS_PHONE ? "phone" : "computer, plays in a browser tab"} · Awake: ${spotifyAwake() ? "yes" : "no"} · Phone known: ${knownDevice ? "yes" : "no"} · Last check: ${lastPoll.at ? Math.round((Date.now() - lastPoll.at) / 1000) + "s ago" : "never"}`;
   $("diagLog").textContent = spLog.slice().reverse().join("\n") || "No Spotify activity yet.";
   $("diagDlg").showModal();
 });
