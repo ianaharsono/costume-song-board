@@ -187,6 +187,11 @@ body.gated { overflow: hidden; }
 .qbtn { width: 34px; height: 34px; padding: 0; justify-content: center; border-radius: 50%; flex: none; font-size: 13px; }
 .qbtn[disabled] { opacity: .3; }
 @media (max-width: 380px) { .plside { width: 40px; height: 40px; } .plart { width: 48px; height: 48px; } }
+.wakebar { position: fixed; left: 0; right: 0; bottom: calc(86px + env(safe-area-inset-bottom, 0px)); z-index: 21; display: flex; gap: 10px; align-items: center;
+  background: var(--glow); color: #1d1a2b; font-size: 14px; line-height: 1.35; padding-block: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wakebar span { flex: 1; min-width: 0; }
+.wakebar button { flex: none; background: #1d1a2b; color: #fff; border-color: #1d1a2b; }
 body.has-player { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
 .player { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--surface); border-top: 1.5px solid var(--line); box-shadow: 0 -6px 24px rgba(20, 15, 40, .12);
   padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
@@ -350,6 +355,10 @@ img { max-width: 100%; }
     <button type="button" class="primary gatebtn" id="gateBtn">Connect Spotify</button>
     <p class="gatesmall">You'll log in on Spotify's site, then come right back here.</p>
   </div>
+</div>
+<div class="wakebar" id="wakeBar" hidden>
+  <span>Spotify opened the song but didn't start it. Tap <b>▶</b> in Spotify once, then come back. After that, taps here play without leaving the board.</span>
+  <button type="button" id="wakeOpen">Open Spotify</button>
 </div>
 <div class="player" id="player" hidden>
   <div class="plinner">
@@ -745,14 +754,19 @@ $("emptyAdd").addEventListener("click", () => { if (!token) { openConnect(); ret
 const ICON_PLAY = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" fill="currentColor"/></svg>';
 const ICON_QUEUE = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 6h12M3 11h12M3 16h7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/><path d="M18 13v7M14.5 16.5h7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 const ICON_QUEUED = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 6h12M3 11h12M3 16h6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/><path d="M13.5 17l2.6 2.6L21.5 14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
+// Hands a song to the Spotify app (or the web player). Kept in one place so it can be tested.
+function openSpotifyLink(it) {
+  if (window.__testOpen) return window.__testOpen(linkFor(it.spotify));
+  if (openMode === "app") location.href = linkFor(it.spotify); else window.open(it.spotify, "_blank");
+}
 function tapPlay(it, e) {
   state.playing = it.id;
   if (state.queue.includes(it.id)) { state.queue = state.queue.filter((x) => x !== it.id); saveQueue(); }
   if (sp.connected()) {
     e?.preventDefault(); e?.stopPropagation();
-    if (spotifyAwake()) playOnSpotify(it); else openAndPlay(it);
+    playOnSpotify(it);
   } else if (e?.currentTarget?.tagName !== "A") {
-    e?.preventDefault(); location.href = linkFor(it.spotify);
+    e?.preventDefault(); openSpotifyLink(it);
   } else render();
 }
 function saveQueue() { try { localStorage.setItem("songQueue", JSON.stringify(state.queue)); } catch {} renderQueue(); }
@@ -935,6 +949,7 @@ function setIcon(playing) {
   $("plToggle").setAttribute("aria-label", playing ? "Pause" : "Play");
 }
 function showPlayer(p) {
+  if (p?.is_playing && wakeFor) hideWake();
   // Spotify reports the new state a moment late, so keep the icon the user just chose for a few seconds.
   if (p && hold && Date.now() < hold.until) {
     if (hold.uri && p.item?.uri !== hold.uri) { setIcon(hold.playing); return; } // Spotify hasn't switched to the new song yet
@@ -986,9 +1001,9 @@ async function pollPlayer() {
   pollTimer = setTimeout(pollPlayer, wait);
 }
 $("plToggle").addEventListener("click", async () => {
-  const playing = !!player?.is_playing;
   const current = state.items.find((x) => x.id === state.playing);
-  if (!playing && !player?.item) {
+  const playing = !!player?.is_playing && spotifyAwake();
+  if (!playing && (!player?.item || !spotifyAwake())) {
     if (current) tapPlay(current, null); else toast("Tap a character to pick a song first.");
     return;
   }
@@ -1000,7 +1015,7 @@ $("plToggle").addEventListener("click", async () => {
   } catch (e) {
     hold = null; setIcon(playing); if (player) player = { ...player, is_playing: playing };
     if (e.reason === "PREMIUM_REQUIRED") toast("Spotify needs Premium to control playback.");
-    else if (!playing && current) { lastPoll.active = false; openAndPlay(current, true); } // Spotify went to sleep: reopen the song in the app
+    else if (!playing && current) { lastPoll.active = false; openAndPlay(current); } // Spotify went to sleep: reopen the song in the app
     else toast(`Spotify didn't respond (${e.reason || "error " + e.status}). Tap again.`);
   }
   setTimeout(pollPlayer, 600);
@@ -1106,11 +1121,20 @@ function showStarting(it) {
 }
 // Spotify only autoplays a linked song when nothing else is playing, so stop the current song first,
 // open the new one in the app, and start it from here if it still isn't playing when you come back.
-async function openAndPlay(it, skipPause) {
+async function openAndPlay(it) {
   pendingPlay = it; showStarting(it); render();
-  if (!skipPause) await Promise.race([spApi("/me/player/pause", { method: "PUT" }).catch(() => {}), new Promise((r) => setTimeout(r, 800))]);
-  if (openMode === "app") location.href = linkFor(it.spotify); else window.open(it.spotify, "_blank");
+  openSpotifyLink(it);
 }
+// The iPhone freezes Spotify when it isn't playing, and a frozen Spotify can't be started from here.
+// The only fix is one tap on play inside Spotify; after that, taps on the board work without leaving it.
+function showWake(it) {
+  wakeFor = it;
+  $("plTitle").textContent = it.songName ? `${it.name} · ${it.songName}` : it.name;
+  $("plSub").textContent = "Tap ▶ in Spotify once, then come back";
+  $("wakeBar").hidden = false;
+}
+function hideWake() { wakeFor = null; $("wakeBar").hidden = true; }
+let wakeFor = null;
 let pendingPlay = null, pendingRepeat = null, lastPoll = { at: 0, active: false };
 // The board's own song, and whether it was about to finish at the last check (used to start the next queued song).
 let curUri = null, nearEnd = false;
@@ -1139,7 +1163,15 @@ async function playOnSpotify(it, isRetry) {
     } catch {}
     devId = devId || player?.device?.id || null;
     const body = u.type === "track" || u.type === "episode" ? { uris: [u.uri] } : { context_uri: u.uri };
-    await spApi("/me/player/play" + (devId ? "?device_id=" + encodeURIComponent(devId) : ""), { method: "PUT", body: JSON.stringify(body) });
+    try {
+      await spApi("/me/player/play" + (devId ? "?device_id=" + encodeURIComponent(devId) : ""), { method: "PUT", body: JSON.stringify(body) });
+    } catch (e1) {
+      if (!devId || e1.status !== 404) throw e1;
+      // Spotify lists the phone but won't take the command: move playback to it, then try once more.
+      await spApi("/me/player", { method: "PUT", body: JSON.stringify({ device_ids: [devId], play: false }) }).catch(() => {});
+      await sleep(700);
+      await spApi("/me/player/play?device_id=" + encodeURIComponent(devId), { method: "PUT", body: JSON.stringify(body) });
+    }
     hold = { playing: true, until: Date.now() + 6000, uri: u.uri }; setIcon(true);
     curUri = u.uri; nearEnd = false;
     setRepeat(repeatKind, devId).catch(() => new Promise((r) => setTimeout(r, 800)).then(() => setRepeat(repeatKind, devId))).catch(() => {});
@@ -1149,7 +1181,7 @@ async function playOnSpotify(it, isRetry) {
   } catch (e) {
     if (!sp.connected()) { toast("Spotify signed out. Tap Connect Spotify again."); pollPlayer(); return; }
     if (e.reason === "PREMIUM_REQUIRED") { toast("Spotify needs Premium to start songs from the board."); pollPlayer(); return; }
-    if (isRetry) { toast(`Spotify still isn't ready (${e.reason || "error " + e.status}). Tap the character again.`); pollPlayer(); return; }
+    if (isRetry) { showWake(it); pollPlayer(); return; }
     // Couldn't start it remotely: open the song in the Spotify app, and make sure it's playing when you come back.
     // Pause the current song first, since Spotify won't autoplay a linked song while another one is playing.
     lastPoll.active = false;
@@ -1158,6 +1190,7 @@ async function playOnSpotify(it, isRetry) {
 }
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible" || !sp.connected()) return;
+  if (wakeFor && !pendingPlay) { pendingPlay = wakeFor; hideWake(); } // back from pressing play in Spotify: confirm it and switch on repeat
   if (pendingPlay) {
     const it = pendingPlay, u = spUri(it.spotify); pendingPlay = null;
     setTimeout(async () => {
@@ -1217,6 +1250,7 @@ $("qClose").addEventListener("click", () => $("queueDlg").close());
 $("qClear").addEventListener("click", () => { state.queue = []; saveQueue(); render(); syncRepeat(); });
 $("qPlayNext").addEventListener("click", () => { $("queueDlg").close(); playNext(); });
 $("plNext").addEventListener("click", () => playNext());
+$("wakeOpen").addEventListener("click", () => { const it = wakeFor; if (it) { hideWake(); openAndPlay(it); } });
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 try { navigator.storage?.persist?.(); } catch {}
 start();
