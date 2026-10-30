@@ -941,14 +941,12 @@
     {
       "id": "race-car-driver-1a18db592b3",
       "name": "Race Car Driver",
-      "songName": "Life Is a Highway",
-      "spotify": "",
-      "spotifySearch": "Life Is a Highway Rascal Flatts",
+      "songName": "Race Car Song",
+      "spotify": "https://open.spotify.com/track/3kM0TzqyGmPpExuPIiTyvK",
       "tags": [
-        "movies",
-        "disney"
+        "movies"
       ],
-      "photo": "",
+      "photo": "photos/race-car-driver-mvvfbxck.jpg",
       "order": 76,
       "createdAt": 1793378849459
     },
