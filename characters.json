@@ -964,12 +964,11 @@
       "id": "chicken-1a18db592b4",
       "name": "Chicken",
       "songName": "Chicken Dance",
-      "spotify": "",
-      "spotifySearch": "Chicken Dance",
+      "spotify": "https://open.spotify.com/track/64WbwrNCZkNiS91TEDAp1L",
       "tags": [
-        "classic"
+        "animal"
       ],
-      "photo": "",
+      "photo": "photos/chicken-mvvedo9e.jpg",
       "order": 77,
       "createdAt": 1793378849460
     },
