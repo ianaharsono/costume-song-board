@@ -873,13 +873,12 @@
     {
       "id": "mario-bowser-jr-1a18db592ad",
       "name": "Mario Bowser Jr",
-      "songName": "Peaches",
-      "spotify": "",
-      "spotifySearch": "Peaches Jack Black",
+      "songName": "Enter Bowser Jr",
+      "spotify": "https://open.spotify.com/track/23ohY0ggL3sMHx4mHSXE8l",
       "tags": [
         "game"
       ],
-      "photo": "",
+      "photo": "photos/mario-bowser-jr-mvvewsn1.jpg",
       "order": 70,
       "createdAt": 1793378849453
     },
