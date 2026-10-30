@@ -857,13 +857,12 @@
       "id": "pokemon-1a18db592ac",
       "name": "Pokemon",
       "songName": "Pokérap",
-      "spotify": "",
-      "spotifySearch": "Pokérap Pokémon",
+      "spotify": "https://open.spotify.com/track/7aXkaLhPec2yjPZlwCE9T2",
       "tags": [
         "tv",
         "game"
       ],
-      "photo": "",
+      "photo": "photos/pokemon-mvvf7qzn.jpg",
       "order": 69,
       "createdAt": 1793378849452
     },
