@@ -357,7 +357,7 @@ img { max-width: 100%; }
   </div>
 </div>
 <div class="wakebar" id="wakeBar" hidden>
-  <span>Spotify opened the song but didn't start it. Tap <b>▶</b> in Spotify once, then come back. After that, taps here play without leaving the board.</span>
+  <span id="wakeText">Spotify opened the song but didn't start it. Tap <b>▶</b> in Spotify once, then come back. After that, taps here play without leaving the board.</span>
   <button type="button" id="wakeOpen">Open Spotify</button>
 </div>
 <div class="player" id="player" hidden>
@@ -764,7 +764,8 @@ function tapPlay(it, e) {
   if (state.queue.includes(it.id)) { state.queue = state.queue.filter((x) => x !== it.id); saveQueue(); }
   if (sp.connected()) {
     e?.preventDefault(); e?.stopPropagation();
-    playOnSpotify(it);
+    // iPhone only opens another app during the tap itself, so this choice can't wait for Spotify to answer.
+    if (spotifyAwake()) playOnSpotify(it); else openAndPlay(it);
   } else if (e?.currentTarget?.tagName !== "A") {
     e?.preventDefault(); openSpotifyLink(it);
   } else render();
@@ -1015,7 +1016,7 @@ $("plToggle").addEventListener("click", async () => {
   } catch (e) {
     hold = null; setIcon(playing); if (player) player = { ...player, is_playing: playing };
     if (e.reason === "PREMIUM_REQUIRED") toast("Spotify needs Premium to control playback.");
-    else if (!playing && current) { lastPoll.active = false; openAndPlay(current); } // Spotify went to sleep: reopen the song in the app
+    else if (!playing && current) { lastPoll.active = false; showWake(current, "Spotify is asleep. Tap Open Spotify to play the song there."); }
     else toast(`Spotify didn't respond (${e.reason || "error " + e.status}). Tap again.`);
   }
   setTimeout(pollPlayer, 600);
@@ -1127,10 +1128,12 @@ async function openAndPlay(it) {
 }
 // The iPhone freezes Spotify when it isn't playing, and a frozen Spotify can't be started from here.
 // The only fix is one tap on play inside Spotify; after that, taps on the board work without leaving it.
-function showWake(it) {
+function showWake(it, msg) {
   wakeFor = it;
   $("plTitle").textContent = it.songName ? `${it.name} · ${it.songName}` : it.name;
   $("plSub").textContent = "Tap ▶ in Spotify once, then come back";
+  $("wakeText").innerHTML = msg ? "" : "Spotify opened the song but didn't start it. Tap <b>▶</b> in Spotify once, then come back. After that, taps here play without leaving the board.";
+  if (msg) $("wakeText").textContent = msg;
   $("wakeBar").hidden = false;
 }
 function hideWake() { wakeFor = null; $("wakeBar").hidden = true; }
@@ -1182,10 +1185,10 @@ async function playOnSpotify(it, isRetry) {
     if (!sp.connected()) { toast("Spotify signed out. Tap Connect Spotify again."); pollPlayer(); return; }
     if (e.reason === "PREMIUM_REQUIRED") { toast("Spotify needs Premium to start songs from the board."); pollPlayer(); return; }
     if (isRetry) { showWake(it); pollPlayer(); return; }
-    // Couldn't start it remotely: open the song in the Spotify app, and make sure it's playing when you come back.
-    // Pause the current song first, since Spotify won't autoplay a linked song while another one is playing.
+    // Couldn't start it from here, and the tap is over, so the page can't open Spotify by itself anymore.
+    // Show a button: a fresh tap on it is allowed to open the app.
     lastPoll.active = false;
-    openAndPlay(it);
+    showWake(it, "Spotify didn't answer. Tap Open Spotify to play the song there.");
   }
 }
 document.addEventListener("visibilitychange", () => {
