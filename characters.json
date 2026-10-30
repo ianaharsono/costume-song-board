@@ -1033,13 +1033,12 @@
       "id": "mermaid-1a18db592ba",
       "name": "Mermaid",
       "songName": "Under the Sea",
-      "spotify": "",
-      "spotifySearch": "Under the Sea Samuel E. Wright",
+      "spotify": "https://open.spotify.com/track/4qqfI5oNO53a6W7nWfutKH",
       "tags": [
         "disney",
         "princess"
       ],
-      "photo": "",
+      "photo": "photos/mermaid-mvveykla.jpg",
       "order": 83,
       "createdAt": 1793378849466
     },
