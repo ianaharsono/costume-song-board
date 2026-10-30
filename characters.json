@@ -935,13 +935,12 @@
     {
       "id": "iron-man-1a18db592b2",
       "name": "Iron Man",
-      "songName": "Iron Man",
-      "spotify": "",
-      "spotifySearch": "Iron Man Black Sabbath",
+      "songName": "I Am Iron Man",
+      "spotify": "https://open.spotify.com/track/6ygcEwkHbFhoWP09e76gRT",
       "tags": [
         "superhero"
       ],
-      "photo": "",
+      "photo": "photos/iron-man-mvveob54.jpg",
       "order": 75,
       "createdAt": 1793378849458
     },
