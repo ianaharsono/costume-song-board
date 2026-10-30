@@ -989,13 +989,12 @@
     {
       "id": "axolotl-1a18db592b6",
       "name": "Axolotl",
-      "songName": "",
-      "spotify": "",
-      "spotifySearch": "axolotl song for kids",
+      "songName": "Axolotl Wiggle",
+      "spotify": "https://open.spotify.com/track/5hLwoeM7pSwT2dWTVEp7fJ",
       "tags": [
         "classic"
       ],
-      "photo": "",
+      "photo": "photos/axolotl-mvvebdgd.jpg",
       "order": 79,
       "createdAt": 1793378849462
     },
