@@ -350,7 +350,8 @@ img { max-width: 100%; }
     <div class="field">
       <label for="f-song">Spotify link</label>
       <input type="url" id="f-song" placeholder="https://open.spotify.com/track/…" autocomplete="off">
-      <small>A song, album or playlist link works.</small>
+      <small>A song, album or playlist link works. Paste it as is: the extra parts are removed for you.</small>
+      <small id="songCleaned" hidden style="color:var(--spotify);font-weight:600">Link cleaned up ✓</small>
     </div>
     <div class="field">
       <label for="f-songname">Song name <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
@@ -468,8 +469,12 @@ function tagsOf(x) {
 function allTags() { return [...new Set(state.items.flatMap(tagsOf))].sort((a, b) => a.localeCompare(b)); }
 function savePrefs() { try { localStorage.setItem("boardPrefs2", JSON.stringify({ tags: [...state.tags], sort: state.sort })); } catch {} }
 
+// Accepts anything copied from Spotify (a share link with ?si=...&utm_source=..., an /intl-xx/ link, a spotify: link,
+// or share text with words around the link) and returns the clean https://open.spotify.com/<type>/<id> form.
 function normalizeSpotify(raw) {
-  const s = (raw || "").trim();
+  const text = (raw || "").trim();
+  const found = text.match(/spotify:(track|album|playlist|episode|artist):[A-Za-z0-9]+/) || text.match(/https?:\/\/[^\s"'<>]*spotify[^\s"'<>]*/i) || text.match(/(?:open\.)?spotify\.(?:com|link)\/[^\s"'<>]+/i);
+  const s = found ? (found[0].startsWith("spotify:") || /^https?:/i.test(found[0]) ? found[0] : "https://" + found[0]) : text;
   let m = s.match(/^spotify:(track|album|playlist|episode|artist):([A-Za-z0-9]+)$/);
   if (m) return `https://open.spotify.com/${m[1]}/${m[2]}`;
   try {
@@ -624,7 +629,7 @@ async function swap(items, a, b) {
 function openEditor(it) {
   state.editId = it ? it.id : null; state.file = null;
   $("dlgTitle").textContent = it ? "Edit character" : "Add character";
-  $("f-name").value = it?.name || ""; $("f-song").value = it?.spotify || ""; $("f-songname").value = it?.songName || ""; state.draftTags = it ? tagsOf(it) : [...state.tags]; $("f-tag").value = ""; renderDraftTags();
+  $("f-name").value = it?.name || ""; $("f-song").value = it?.spotify ? (normalizeSpotify(it.spotify) || it.spotify) : ""; $("songCleaned").hidden = true; $("f-songname").value = it?.songName || ""; state.draftTags = it ? tagsOf(it) : [...state.tags]; $("f-tag").value = ""; renderDraftTags();
   $("f-photo").value = ""; state.cropped = null; closeCrop();
   setPreview(it?.photo ? photoSrc(it) : null);
   $("recropBtn").hidden = !it?.photo;
@@ -766,6 +771,13 @@ $("recropBtn").addEventListener("click", () => {
   const src = localPhotos[it.photo] || new URL(it.photo, location.href).href;
   openCrop([src, `https://raw.githubusercontent.com/${REPO}/main/${it.photo}`], true);
 });
+function cleanSongField() {
+  const raw = $("f-song").value, clean = normalizeSpotify(raw);
+  if (clean && clean !== raw.trim()) { $("f-song").value = clean; $("songCleaned").hidden = false; }
+}
+$("f-song").addEventListener("paste", () => setTimeout(cleanSongField, 0));
+$("f-song").addEventListener("blur", cleanSongField);
+$("f-song").addEventListener("input", () => { $("songCleaned").hidden = true; if (/\?si=|utm_|\s/.test($("f-song").value.trim())) cleanSongField(); });
 $("f-photo").addEventListener("change", (e) => {
   const f = e.target.files[0]; state.file = f || null; state.cropped = null;
   if (f) { $("err").textContent = ""; openCrop(URL.createObjectURL(f), false); }
