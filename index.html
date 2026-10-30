@@ -1209,6 +1209,22 @@ function syncRepeat() {
 // Spotify counts as awake if a check saw it playing in the last 30 seconds, or a song was started from here in the last minute.
 function spotifyAwake() { return (lastPoll.active && Date.now() - lastPoll.at < 30000) || (Date.now() - lastPlayOk < 60000 && !!knownDevice); }
 let playSeq = 0, knownDevice = null, lastPlayOk = 0;
+async function skipTo(u, devId, seq) {
+  try {
+    const d = "&device_id=" + encodeURIComponent(devId);
+    await spApi("/me/player/queue?uri=" + encodeURIComponent(u.uri) + d, { method: "POST" });
+    for (let i = 0; i < 3; i++) {
+      if (seq !== playSeq) return true;
+      await spApi("/me/player/next?" + d.slice(1), { method: "POST" });
+      await sleep(500);
+      let p = null; try { p = await spApi("/me/player"); } catch {}
+      if (p?.item?.uri === u.uri) return true;
+      if (p && p.item && p.item.uri !== u.uri && i < 2) continue; // an older queued song came first: skip past it
+      if (!p?.item) return !!p?.is_playing;
+    }
+  } catch (e) { logSp("skip failed: " + (e.reason || e.status)); }
+  return false;
+}
 // Spotify can say "OK" to a song and then sit paused with no song loaded (seen in the details log).
 // Check shortly after, send the song once more, and if it still isn't playing, say so plainly.
 async function verifyPlaying(it, u, devId, body, seq) {
@@ -1253,7 +1269,11 @@ async function playOnSpotify(it, isRetry) {
     // On a phone with Spotify asleep there, don't let Spotify pick another device: open the app here instead.
     if (IS_PHONE && !devId) throw Object.assign(new Error("nophone"), { status: 404, reason: "PHONE_ASLEEP" });
     const body = u.type === "track" || u.type === "episode" ? { uris: [u.uri] } : { context_uri: u.uri };
-    try {
+    // iPhone lets Spotify skip tracks in the background (like the lock screen's next button) but not start a new song.
+    // So while a song is already playing on this phone, switch by queueing the new song and skipping to it.
+    const canSkip = IS_PHONE && devId && (u.type === "track" || u.type === "episode") && player?.is_playing && player?.device?.id === devId;
+    if (canSkip && await skipTo(u, devId, seq)) { /* switched by skipping */ }
+    else try {
       await spApi("/me/player/play" + (devId ? "?device_id=" + encodeURIComponent(devId) : ""), { method: "PUT", body: JSON.stringify(body) });
     } catch (e1) {
       if (!devId || e1.status !== 404) throw e1;
