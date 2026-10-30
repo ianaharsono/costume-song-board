@@ -566,6 +566,18 @@
       "photo": "photos/zombie-mvuf0fkw.jpg",
       "order": 45,
       "createdAt": 1793331063932
+    },
+    {
+      "id": "black-cat-mvuf6hnj",
+      "name": "Black Cat",
+      "songName": "Little Cat Danny Go",
+      "spotify": "https://open.spotify.com/album/7khTtFbmq7o0y1hrydp7VB",
+      "tags": [
+        "classic"
+      ],
+      "photo": "photos/black-cat-mvuf6hvh.jpg",
+      "order": 46,
+      "createdAt": 1793331346849
     }
   ]
 }
