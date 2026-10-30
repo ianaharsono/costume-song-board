@@ -103,6 +103,8 @@ select { font: 600 14px var(--body); padding: 8px 12px; border: 1.5px solid var(
 .name { font-family: var(--body); font-weight: 800; font-size: 19px; line-height: 1.2; letter-spacing: -0.005em; color: var(--ink); overflow-wrap: anywhere; }
 .song { font-size: 15px; font-weight: 500; line-height: 1.3; color: var(--ink-soft); display: flex; align-items: center; gap: 6px; min-width: 0; }
 .song svg { flex: none; color: var(--spotify); width: 16px; height: 16px; }
+.song.broken { color: #c62828; font-weight: 700; }
+.song.broken svg { color: #c62828; }
 .song span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .badge { position: absolute; top: 10px; left: 10px; background: var(--glow); color: #1d1a2b; font: 700 12px var(--body); letter-spacing: .06em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; }
 .editbar { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; }
@@ -442,7 +444,7 @@ function setOpenMode(mode) {
   render();
 }
 
-function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2200); }
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, msg.length > 80 ? 5000 : 2200); }
 
 function render() {
   const g = $("grid");
@@ -506,6 +508,7 @@ function render() {
     const n = document.createElement("div"); n.className = "name"; n.textContent = it.name || "Untitled";
     const s = document.createElement("div"); s.className = "song"; s.innerHTML = SPOTIFY_ICON;
     const songText = document.createElement("span"); songText.textContent = it.songName || ("Spotify " + kindOf(it.spotify)); songText.title = songText.textContent; s.append(songText);
+    if (songBroken(it)) { s.classList.add("broken"); songText.textContent = "Song link not working"; songText.title = "Spotify can't find this song. Tap Edit and paste a new Spotify link."; }
     const tt = tagsOf(it);
     if (tt.length) { const tw = document.createElement("div"); tw.className = "tiletags"; tt.forEach((t) => { const x = document.createElement("span"); x.textContent = "#" + t; tw.append(x); }); lab.append(tw); }
     lab.append(n, s); el.append(lab);
@@ -775,6 +778,7 @@ function openSpotifyLink(it) {
   window.open(linkFor(it.spotify), "_blank"); // new tab, so the board stays put if Spotify's site opens instead of the app
 }
 function tapPlay(it, e) {
+  if (songBroken(it)) { e?.preventDefault(); e?.stopPropagation(); toast(brokenMsg(it)); return; }
   state.playing = it.id;
   if (state.queue.includes(it.id)) { state.queue = state.queue.filter((x) => x !== it.id); saveQueue(); }
   const isLink = e?.currentTarget?.tagName === "A";
@@ -916,6 +920,7 @@ async function start() {
   $("editToggle").hidden = false;
   await refresh(true);
   await spInit();
+  checkAllSongs();
   // Pick up changes made on other devices: check when the page comes back into view, and every minute while it's open.
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refresh(); });
   window.addEventListener("focus", () => refresh());
@@ -933,7 +938,7 @@ async function refresh(first) {
         .catch(() => fetch("characters.json", { cache: "no-cache" }).then((r) => r.json()));
       items = withIds(Array.isArray(d) ? d : d.characters || []);
     }
-    if (first || JSON.stringify(items) !== JSON.stringify(state.items)) { state.items = items; state.loaded = true; render(); }
+    if (first || JSON.stringify(items) !== JSON.stringify(state.items)) { state.items = items; state.loaded = true; render(); if (!first) checkAllSongs(); }
     $("status").hidden = true;
   } catch { if (first) showStatus("Couldn't load the characters. Reload the page to try again."); }
   finally { refreshing = false; }
@@ -1116,6 +1121,44 @@ document.addEventListener("visibilitychange", () => { if (document.visibilitySta
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const spLog = [], devNames = {};
 function logSp(line) { spLog.push(new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" }) + "  " + line); if (spLog.length > 40) spLog.shift(); }
+// ---- Song link check: finds links Spotify doesn't recognize (a wrong or removed song), so they can be fixed ----
+// Results are kept per link for a week. A new link is checked fresh, since it's a different key.
+const linkCheck = JSON.parse(lsGet("songCheck") || "{}");
+const CHECK_TTL = 7 * 864e5;
+function songBroken(it) { const u = spUri(it.spotify); return !!u && linkCheck[u.uri]?.r === "bad"; }
+function brokenMsg(it) { return `${it.name}'s song link doesn't work on Spotify. Tap Edit, open ${it.name} and paste a new link from Spotify.`; }
+async function checkSong(it, force) {
+  const u = spUri(it.spotify); if (!u || !sp.connected()) return null;
+  const c = linkCheck[u.uri];
+  if (!force && c && Date.now() - c.at < CHECK_TTL) return c.r;
+  const id = u.uri.split(":")[2], path = { track: "/tracks/", album: "/albums/", playlist: "/playlists/", episode: "/episodes/", artist: "/artists/" }[u.type] + id;
+  let r = "ok", name = "";
+  try {
+    const d = await spApi(path + (u.type === "playlist" ? "?fields=name" : ""));
+    name = d?.name || "";
+    if (Array.isArray(d?.available_markets) && u.type !== "playlist" && d.available_markets.length === 0 && u.type !== "artist") r = "bad";
+  } catch (e) {
+    if (e.status === 404 || e.status === 400) r = "bad";
+    else return null; // signed out, offline or rate limited: don't decide
+  }
+  linkCheck[u.uri] = { r, at: Date.now(), name };
+  lsSet("songCheck", JSON.stringify(linkCheck));
+  if (r === "bad") logSp(`${it.name}: Spotify doesn't recognize this song link`);
+  return r;
+}
+let checkingSongs = false;
+async function checkAllSongs() {
+  if (checkingSongs || !sp.connected()) return;
+  checkingSongs = true;
+  try {
+    const todo = state.items.filter((it) => { const u = spUri(it.spotify); const c = u && linkCheck[u.uri]; return u && !(c && Date.now() - c.at < CHECK_TTL); });
+    let changed = false;
+    for (const it of todo) { const before = songBroken(it); const r = await checkSong(it); if (r == null) break; if (songBroken(it) !== before) changed = true; await sleep(150); }
+    if (changed) render();
+    const bad = state.items.filter(songBroken);
+    if (bad.length) toast(bad.length === 1 ? brokenMsg(bad[0]) : `${bad.length} song links don't work on Spotify: ${bad.map((x) => x.name).join(", ")}. Tap Edit to paste new links.`);
+  } finally { checkingSongs = false; }
+}
 async function spApi(path, opts = {}, attempt = 0) {
   const t0 = performance.now(), label = (opts.method || "GET") + " " + path.split("?")[0].replace("/me/player", "player");
   try {
@@ -1241,6 +1284,8 @@ async function verifyPlaying(it, u, devId, body, seq) {
   }
   if (seq !== playSeq) return;
   hold = null; lastPlayOk = 0; lastPoll.active = false;
+  if (await checkSong(it, true) === "bad") { hideWake(); state.playing = null; render(); toast(brokenMsg(it)); pollPlayer(); return; }
+  if (seq !== playSeq) return;
   showWake(it, `Spotify accepted ${it.name}'s song but didn't play it. Tap Open Spotify to play it there. If it never plays, the song may not be available in your country.`);
   pollPlayer();
 }
