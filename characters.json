@@ -1011,13 +1011,12 @@
     {
       "id": "harley-quinn-1a18db592b8",
       "name": "Harley Quinn",
-      "songName": "Ballroom Blitz",
-      "spotify": "",
-      "spotifySearch": "Ballroom Blitz Sweet",
+      "songName": "Harley Quinn",
+      "spotify": "https://open.spotify.com/track/14JgKue270GdhP2pQNIcD6",
       "tags": [
         "superhero"
       ],
-      "photo": "",
+      "photo": "photos/harley-quinn-mvvejsl8.jpg",
       "order": 81,
       "createdAt": 1793378849464
     },
