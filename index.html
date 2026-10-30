@@ -873,9 +873,9 @@ function tapPlay(it, e) {
   if (sp.connected()) {
     e?.stopPropagation();
     // iPhone only opens another app during the tap itself, so this choice can't wait for Spotify to answer.
-    if (IS_PHONE ? playingHere() : spotifyAwake()) { e?.preventDefault(); playOnSpotify(it); }
-    else if (isLink) { pendingPlay = it; showStarting(it); render(); claimPhone(); logSp("opened Spotify app with " + it.name); if (window.__testOpen) { e.preventDefault(); window.__testOpen(e.currentTarget.href); } }
-    else { e?.preventDefault(); openAndPlay(it); }
+    if (IS_PHONE ? playingHere() : webOnly() ? webPlayerReady() : spotifyAwake()) { e?.preventDefault(); playOnSpotify(it); }
+    else if (isLink) { pendingPlay = it; showStarting(it); render(); claimPhone(); logSp("opened Spotify " + (webOnly() ? "web player tab" : "app") + " with " + it.name); if (window.__testOpen) { e.preventDefault(); window.__testOpen(e.currentTarget.href); } if (webOnly()) startInWebPlayer(it); }
+    else { e?.preventDefault(); openAndPlay(it); if (webOnly()) startInWebPlayer(it); }
   } else if (!isLink) {
     e?.preventDefault(); openSpotifyLink(it);
   } else render();
@@ -949,6 +949,37 @@ async function deleteFile(path, message) {
 }
 const SP_TAB = "costume-song-board-spotify";
 const reuseTab = () => openMode === "web" && !IS_PHONE;
+const isWebPlayer = (d) => /web player/i.test(d?.name || "");
+// Web player mode on a computer: songs play only in the browser's Spotify tab, never the desktop app.
+const webOnly = () => reuseTab();
+function webPlayerReady() {
+  const p = lastRaw.p;
+  return (isWebPlayer(p?.device) && p?.device?.is_active && Date.now() - lastRaw.at < 30000) || (Date.now() - lastPlayOk < 60000 && isWebPlayer({ name: devNames[knownDevice] }));
+}
+// After the board opens the Spotify tab, wait for its web player to appear, then start the song in it.
+let webStartFor = 0;
+async function startInWebPlayer(it) {
+  const u = spUri(it.spotify); if (!u || !sp.connected()) return;
+  const mine = ++webStartFor;
+  for (let i = 0; i < 20 && mine === webStartFor; i++) {
+    await sleep(1500);
+    let devices = [];
+    try { ({ devices = [] } = (await spApi("/me/player/devices")) || {}); } catch { continue; }
+    devices.forEach((d) => { devNames[d.id] = d.name; });
+    const web = devices.find((d) => isWebPlayer(d) && d.is_active) || devices.find(isWebPlayer);
+    if (!web) continue;
+    const body = u.type === "track" || u.type === "episode" ? { uris: [u.uri] } : { context_uri: u.uri };
+    try {
+      await spApi("/me/player/play?device_id=" + encodeURIComponent(web.id), { method: "PUT", body: JSON.stringify(body) });
+      knownDevice = web.id; lastPlayOk = Date.now(); curUri = u.uri; nearEnd = false; pendingPlay = null; hideWake();
+      hold = { playing: true, until: Date.now() + 6000, uri: u.uri }; setIcon(true);
+      setRepeat(repeatFor(u), web.id).catch(() => {});
+      logSp(`started ${it.name} in ${web.name}`);
+      setTimeout(pollPlayer, 800);
+      return;
+    } catch (e) { logSp(`web player not ready yet (${e.reason || e.status})`); }
+  }
+}
 function spTab() { return reuseTab() ? SP_TAB : "_blank"; }
 function aimLink(a) { a.target = spTab(); a.rel = reuseTab() ? "" : "noopener"; return a; }
 function songLink(it) {
@@ -1150,7 +1181,7 @@ async function pollPlayer() {
         devNames[p.device.id] = p.device.name;
         if (/smartphone|tablet/i.test(p.device.type || "")) lsSet("spPhone", p.device.id);
         // Only lock onto a phone or tablet when the board itself is on one, so songs don't go to a speaker or computer.
-        if (!IS_PHONE || /smartphone|tablet/i.test(p.device.type || "")) knownDevice = p.device.id;
+        if (IS_PHONE ? /smartphone|tablet/i.test(p.device.type || "") : (!webOnly() || isWebPlayer(p.device))) knownDevice = p.device.id;
       }
       showPlayer(p);
       // Queue: when the board's song finishes (Spotify stops, or moves on to its own pick), start the next queued song.
@@ -1462,7 +1493,7 @@ function showWake(it, msg) {
 }
 function hideWake() { $("wakeOpen").href = "https://open.spotify.com";  wakeFor = null; $("wakeBar").hidden = true; }
 let wakeFor = null;
-const isHere = (d) => !IS_PHONE || /smartphone|tablet/i.test(d?.type || "");
+const isHere = (d) => IS_PHONE ? /smartphone|tablet/i.test(d?.type || "") : (!webOnly() || isWebPlayer(d));
 // Moves what's playing onto this phone or tablet. Returns false if Spotify doesn't list this phone.
 async function moveToPhone() {
   try {
@@ -1565,11 +1596,16 @@ async function playOnSpotify(it, isRetry) {
         if (!devices.length) { await sleep(1000); ({ devices = [] } = (await spApi("/me/player/devices")) || {}); }
         devices.forEach((d) => { devNames[d.id] = d.name; });
         const phones = devices.filter((d) => /smartphone|tablet/i.test(d.type));
-        const dev = IS_PHONE ? phones.find((d) => d.is_active) || phones[0] : devices.find((d) => d.is_active) || devices[0];
+        const webs = devices.filter(isWebPlayer);
+        const dev = IS_PHONE ? phones.find((d) => d.is_active) || phones[0]
+          : webOnly() ? webs.find((d) => d.is_active) || webs[0]
+          : devices.find((d) => d.is_active) || devices[0];
         devId = dev?.id || null;
       } catch {}
     }
     if (seq !== playSeq) return; // a newer tap took over
+    if (webOnly() && devId && !isWebPlayer({ name: devNames[devId] })) devId = null; // a remembered desktop app doesn't count
+    if (webOnly() && !devId) throw Object.assign(new Error("noweb"), { status: 404, reason: "NO_WEB_PLAYER" });
     // On a phone with Spotify asleep there, don't let Spotify pick another device: open the app here instead.
     if (IS_PHONE && !devId) throw Object.assign(new Error("nophone"), { status: 404, reason: "PHONE_ASLEEP" });
     const body = u.type === "track" || u.type === "episode" ? { uris: [u.uri] } : { context_uri: u.uri };
@@ -1610,7 +1646,7 @@ async function playOnSpotify(it, isRetry) {
     // Couldn't start it from here, and the tap is over, so the page can't open Spotify by itself anymore.
     // Show a button: a fresh tap on it is allowed to open the app.
     lastPoll.active = false;
-    showWake(it, "Spotify didn't answer. Tap Open Spotify to play the song there.");
+    showWake(it, webOnly() ? "The Spotify web player tab isn't open. Tap Open Spotify to open it with this song." : "Spotify didn't answer. Tap Open Spotify to play the song there.");
   }
 }
 document.addEventListener("visibilitychange", () => {
@@ -1693,7 +1729,7 @@ $("diagOpen").addEventListener("click", () => { $("filterDlg").close(); document
 $("checkOpen").addEventListener("click", () => { $("filterDlg").close(); $("checkDlg").showModal(); renderCheck(); if (!sp.connected()) $("checkSummary").textContent = "Connect Spotify first, then check."; });
 $("checkClose").addEventListener("click", () => $("checkDlg").close());
 $("checkRun").addEventListener("click", () => { lastTapAt = 0; checkAllSongs(true); });
-$("wakeOpen").addEventListener("click", (e) => { const it = wakeFor; if (it) { hideWake(); pendingPlay = it; showStarting(it); if (window.__testOpen) { e.preventDefault(); window.__testOpen(e.currentTarget.href); } } });
+$("wakeOpen").addEventListener("click", (e) => { const it = wakeFor; if (it) { hideWake(); pendingPlay = it; showStarting(it); if (webOnly()) startInWebPlayer(it); if (window.__testOpen) { e.preventDefault(); window.__testOpen(e.currentTarget.href); } } });
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 try { navigator.storage?.persist?.(); } catch {}
 start();
