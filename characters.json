@@ -891,18 +891,6 @@
       "createdAt": 1793378849454
     },
     {
-      "id": "star-wars-stormtrooper-1a18db592af",
-      "name": "Star Wars Stormtrooper",
-      "songName": "The Imperial March",
-      "spotify": "https://open.spotify.com/track/2bw4WgXyXP90hIex7ur58y",
-      "tags": [
-        "movies"
-      ],
-      "photo": "",
-      "order": 72,
-      "createdAt": 1793378849455
-    },
-    {
       "id": "hermione-1a18db592b0",
       "name": "Hermione",
       "songName": "Harry's Wondrous World",
