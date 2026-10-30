@@ -19,6 +19,7 @@ Live: https://ianaharsono.github.io/costume-song-board/ · Repo: ianaharsono/cos
 - `config.json`: `{ "spotifyClientId": "df55a26c05364902888f0d1a503d6b00" }` (public Client ID of her Spotify developer app; not a secret).
 - `sw.js`: service worker that caches only `/photos/` and fonts (never the page or JSON).
 - `README.md`: short public readme.
+- `icons/` + `manifest.webmanifest`: home screen icon (original ghost + music note; source `icons/icon.svg`, rendered with Playwright). Manifest uses `display: "browser"` on purpose so the home screen icon opens in Safari, where all playback rules were tested (a standalone web app has separate storage and different link handling).
 
 ## How it works
 - **Data**: page reads `characters.json` straight from the GitHub API (if a GitHub key is saved) or `raw.githubusercontent.com` (fallback: site copy), and re-checks on focus/visibility and every 60s so edits on one device show on others within seconds.
