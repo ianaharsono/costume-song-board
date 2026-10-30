@@ -530,6 +530,18 @@
       "photo": "photos/teenage-mutant-ninja-turtles-mvubt4k4.jpg",
       "order": 42,
       "createdAt": 1793325684097
+    },
+    {
+      "id": "vampire-mvueu450",
+      "name": "Vampire",
+      "songName": "Monster Mash",
+      "spotify": "https://open.spotify.com/track/6GmL39a9OazWtyMkAbJz7v",
+      "tags": [
+        "classic"
+      ],
+      "photo": "photos/vampire-mvueu45w.jpg",
+      "order": 43,
+      "createdAt": 1793330768934
     }
   ]
 }
