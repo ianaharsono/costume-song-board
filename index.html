@@ -192,6 +192,8 @@ body.gated { overflow: hidden; }
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 .wakebar span { flex: 1; min-width: 0; }
 .wakebar button { flex: none; background: #1d1a2b; color: #fff; border-color: #1d1a2b; }
+.diag { margin: 0; max-height: 50vh; overflow: auto; font: 12px/1.45 ui-monospace, Menlo, monospace; background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; padding: 10px; white-space: pre-wrap; }
+.pltext { cursor: pointer; }
 body.has-player { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
 .player { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--surface); border-top: 1.5px solid var(--line); box-shadow: 0 -6px 24px rgba(20, 15, 40, .12);
   padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
@@ -381,6 +383,14 @@ img { max-width: 100%; }
     </button>
   </div>
 </div>
+<dialog id="diagDlg">
+  <div class="sheet">
+    <div class="row"><h2 style="margin:0;font-family:var(--display)">Spotify details</h2><div class="right"><button type="button" id="diagClose">Done</button></div></div>
+    <p class="note" style="margin:0" id="diagState"></p>
+    <pre class="diag" id="diagLog"></pre>
+    <p class="note" style="margin:0">Screenshot this and send it to Claude if songs are slow or don't play.</p>
+  </div>
+</dialog>
 <dialog id="queueDlg">
   <div class="sheet">
     <div class="row"><h2 style="margin:0">Queue</h2><div class="right"><button type="button" id="qClear" class="danger" hidden>Clear</button><button type="button" id="qClose">Done</button></div></div>
@@ -756,6 +766,7 @@ const ICON_QUEUE = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden=
 const ICON_QUEUED = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 6h12M3 11h12M3 16h6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/><path d="M13.5 17l2.6 2.6L21.5 14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
 // Hands a song to the Spotify app (or the web player). Kept in one place so it can be tested.
 function openSpotifyLink(it) {
+  logSp("opened Spotify app with " + (it.name || "song"));
   if (window.__testOpen) return window.__testOpen(linkFor(it.spotify));
   if (openMode === "app") location.href = linkFor(it.spotify); else window.open(it.spotify, "_blank");
 }
@@ -985,6 +996,7 @@ async function pollPlayer() {
     } else {
       delete $("plSub").dataset.err;
       lastPoll = { at: Date.now(), active: !!(p?.device?.is_active || p?.is_playing) };
+      if (p?.device?.id) knownDevice = p.device.id;
       showPlayer(p);
       // Queue: when the board's song finishes (Spotify stops, or moves on to its own pick), start the next queued song.
       if (state.queue.length && curUri && !(hold && Date.now() < hold.until)) {
@@ -1087,7 +1099,14 @@ async function spAccess(force) {
 let resumedAt = 0;
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") resumedAt = Date.now(); });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const spLog = [];
+function logSp(line) { spLog.push(new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" }) + "  " + line); if (spLog.length > 40) spLog.shift(); }
 async function spApi(path, opts = {}, attempt = 0) {
+  const t0 = performance.now(), label = (opts.method || "GET") + " " + path.split("?")[0].replace("/me/player", "player");
+  try { const out = await spApiInner(path, opts, attempt); logSp(`${label} → ok ${out == null ? "(empty)" : ""} ${Math.round(performance.now() - t0)}ms`); return out; }
+  catch (e) { logSp(`${label} → ${e.status || ""} ${e.reason || ""} ${Math.round(performance.now() - t0)}ms`); throw e; }
+}
+async function spApiInner(path, opts = {}, attempt = 0) {
   const wait = resumedAt + 700 - Date.now(); if (wait > 0) await sleep(wait);
   let r;
   try {
@@ -1095,12 +1114,12 @@ async function spApi(path, opts = {}, attempt = 0) {
     r = await fetch("https://api.spotify.com/v1" + path, { ...fetchOpts, headers: { Authorization: "Bearer " + (await spAccess(attempt > 0 && opts.__force)), ...(opts.body ? { "Content-Type": "application/json" } : {}) } });
   } catch (netErr) {
     // Dropped connection (common right after switching apps): try twice more before reporting it.
-    if (attempt < 2 && sp.connected()) { await sleep(600 + attempt * 600); return spApi(path, opts, attempt + 1); }
+    if (attempt < 2 && sp.connected()) { await sleep(600 + attempt * 600); return spApiInner(path, opts, attempt + 1); }
     const e = new Error("network"); e.status = 0; e.reason = "NETWORK"; throw e;
   }
   if ((r.status === 401 || r.status >= 500) && attempt < 2 && sp.connected()) {
     await sleep(r.status === 401 ? 0 : 700);
-    return spApi(path, { ...opts, __force: r.status === 401 }, attempt + 1);
+    return spApiInner(path, { ...opts, __force: r.status === 401 }, attempt + 1);
   }
   if (!r.ok) {
     let reason = ""; try { reason = (await r.json())?.error?.reason || ""; } catch {}
@@ -1117,6 +1136,7 @@ async function setRepeat(kind, deviceId) {
 function showStarting(it) {
   $("plTitle").textContent = it.songName ? `${it.name} · ${it.songName}` : it.name;
   $("plSub").textContent = "Starting…";
+  setIcon(true);
   const src = it.photo ? photoSrc(it) : "";
   $("plArt").hidden = !src; $("plBlank").hidden = !!src; if (src) $("plArt").src = src;
 }
@@ -1148,40 +1168,52 @@ function syncRepeat() {
   const want = repeatFor({ type: curUri.split(":")[1] });
   if (player.repeat_state !== want) { player = { ...player, repeat_state: want }; setRepeat(want, player.device?.id).catch(() => {}); }
 }
-function spotifyAwake() { return lastPoll.active && Date.now() - lastPoll.at < 15000; }
+// Spotify counts as awake if a check saw it playing in the last 30 seconds, or a song was started from here in the last minute.
+function spotifyAwake() { return (lastPoll.active && Date.now() - lastPoll.at < 30000) || Date.now() - lastPlayOk < 60000; }
+let playSeq = 0, knownDevice = null, lastPlayOk = 0;
 async function playOnSpotify(it, isRetry) {
+  const seq = ++playSeq;
   render();
   const u = spUri(it.spotify);
   if (!u) { window.open(it.spotify, "_blank"); return; }
   showStarting(it);
   const repeatKind = repeatFor(u);
   try {
-    // If the device list can't be read, fall back to the device the player bar last saw, then to Spotify's active device.
-    let devId = null;
-    try {
-      let { devices = [] } = (await spApi("/me/player/devices")) || {};
-      if (!devices.length) { await sleep(1000); ({ devices = [] } = (await spApi("/me/player/devices")) || {}); }
-      const dev = devices.find((d) => d.is_active) || devices.find((d) => /smartphone|tablet/i.test(d.type)) || devices[0];
-      devId = dev?.id || null;
-    } catch {}
-    devId = devId || player?.device?.id || null;
+    // Fast path: send the song straight to the phone Spotify was last playing on (one request).
+    // Only look up the device list when the board doesn't know the phone yet.
+    let devId = knownDevice;
+    if (!devId) {
+      try {
+        let { devices = [] } = (await spApi("/me/player/devices")) || {};
+        if (!devices.length) { await sleep(1000); ({ devices = [] } = (await spApi("/me/player/devices")) || {}); }
+        const dev = devices.find((d) => d.is_active) || devices.find((d) => /smartphone|tablet/i.test(d.type)) || devices[0];
+        devId = dev?.id || null;
+      } catch {}
+    }
+    if (seq !== playSeq) return; // a newer tap took over
     const body = u.type === "track" || u.type === "episode" ? { uris: [u.uri] } : { context_uri: u.uri };
     try {
       await spApi("/me/player/play" + (devId ? "?device_id=" + encodeURIComponent(devId) : ""), { method: "PUT", body: JSON.stringify(body) });
     } catch (e1) {
       if (!devId || e1.status !== 404) throw e1;
+      if (seq !== playSeq) return;
+      knownDevice = null;
       // Spotify lists the phone but won't take the command: move playback to it, then try once more.
       await spApi("/me/player", { method: "PUT", body: JSON.stringify({ device_ids: [devId], play: false }) }).catch(() => {});
       await sleep(700);
       await spApi("/me/player/play?device_id=" + encodeURIComponent(devId), { method: "PUT", body: JSON.stringify(body) });
     }
+    if (seq !== playSeq) return;
+    knownDevice = devId; lastPlayOk = Date.now();
     hold = { playing: true, until: Date.now() + 6000, uri: u.uri }; setIcon(true);
     curUri = u.uri; nearEnd = false;
+    $("plSub").textContent = "Playing";
     setRepeat(repeatKind, devId).catch(() => new Promise((r) => setTimeout(r, 800)).then(() => setRepeat(repeatKind, devId))).catch(() => {});
     const upNext = state.items.find((x) => x.id === state.queue[0]);
     toast(upNext ? `Playing ${it.name}'s song. ${upNext.name} is up next` : `Playing ${it.name}'s song on repeat`);
-    setTimeout(pollPlayer, 900);
+    setTimeout(pollPlayer, 600);
   } catch (e) {
+    if (seq !== playSeq) return;
     if (!sp.connected()) { toast("Spotify signed out. Tap Connect Spotify again."); pollPlayer(); return; }
     if (e.reason === "PREMIUM_REQUIRED") { toast("Spotify needs Premium to start songs from the board."); pollPlayer(); return; }
     if (isRetry) { showWake(it); pollPlayer(); return; }
@@ -1253,6 +1285,12 @@ $("qClose").addEventListener("click", () => $("queueDlg").close());
 $("qClear").addEventListener("click", () => { state.queue = []; saveQueue(); render(); syncRepeat(); });
 $("qPlayNext").addEventListener("click", () => { $("queueDlg").close(); playNext(); });
 $("plNext").addEventListener("click", () => playNext());
+document.querySelector(".pltext").addEventListener("click", () => {
+  $("diagState").textContent = `Awake: ${spotifyAwake() ? "yes" : "no"} · Phone known: ${knownDevice ? "yes" : "no"} · Last check: ${lastPoll.at ? Math.round((Date.now() - lastPoll.at) / 1000) + "s ago" : "never"}`;
+  $("diagLog").textContent = spLog.slice().reverse().join("\n") || "No Spotify activity yet.";
+  $("diagDlg").showModal();
+});
+$("diagClose").addEventListener("click", () => $("diagDlg").close());
 $("wakeOpen").addEventListener("click", () => { const it = wakeFor; if (it) { hideWake(); openAndPlay(it); } });
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 try { navigator.storage?.persist?.(); } catch {}
