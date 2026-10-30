@@ -294,7 +294,7 @@ img { max-width: 100%; }
       <div class="chips" id="chips" role="group" aria-label="Filter by tag"></div>
       <button type="button" class="linkbtn" id="tagsMore" hidden></button>
     </div>
-    <div class="fsec">
+    <div class="fsec" id="openModeSec">
       <h3>Open songs in</h3>
       <div class="seg" id="openMode" role="group" aria-label="Open songs in">
         <button type="button" data-mode="app" aria-pressed="false">Spotify app</button>
@@ -307,6 +307,7 @@ img { max-width: 100%; }
       <button type="button" class="linkbtn" id="diagOpen">Spotify details</button>
       <button type="button" class="linkbtn" id="disconnectBtn" hidden>Disconnect GitHub</button>
     </div>
+    <p class="fhint" style="margin:0" id="buildTag">Board version: web-tab-2</p>
   </div>
 </dialog>
 
@@ -840,7 +841,7 @@ $("form").addEventListener("submit", async (e) => {
 let afterConnect = null;
 function withGitHub(fn) { if (token) fn(); else { afterConnect = fn; openConnect(); } }
 $("emptyAdd").addEventListener("click", () => withGitHub(() => openEditor(null)));
-$("filterBtn").addEventListener("click", () => { $("disconnectBtn").hidden = !token; $("filterDlg").showModal(); });
+$("filterBtn").addEventListener("click", () => { $("disconnectBtn").hidden = !token; $("openModeSec").hidden = !IS_PHONE; $("filterDlg").showModal(); });
 $("filterDone").addEventListener("click", () => $("filterDlg").close());
 $("filterClear").addEventListener("click", () => { state.tags.clear(); state.sort = "name"; savePrefs(); render(); });
 $("tagsMore").addEventListener("click", () => { state.showAllTags = !state.showAllTags; render(); });
@@ -948,7 +949,7 @@ async function deleteFile(path, message) {
   return gh(path, { method: "DELETE", body: JSON.stringify({ message, sha: f.sha, branch: "main" }) });
 }
 const SP_TAB = "costume-song-board-spotify";
-const reuseTab = () => openMode === "web" && !IS_PHONE;
+const reuseTab = () => !IS_PHONE; // computers always use one browser Spotify tab
 const isWebPlayer = (d) => /web player/i.test(d?.name || "");
 // Web player mode on a computer: songs play only in the browser's Spotify tab, never the desktop app.
 const webOnly = () => reuseTab();
@@ -1720,7 +1721,7 @@ $("qClear").addEventListener("click", () => { state.queue = []; saveQueue(); ren
 $("qPlayNext").addEventListener("click", () => { $("queueDlg").close(); playNext(); });
 $("plNext").addEventListener("click", () => playNext());
 document.querySelector(".pltext").addEventListener("click", () => {
-  $("diagState").textContent = `Awake: ${spotifyAwake() ? "yes" : "no"} · Phone known: ${knownDevice ? "yes" : "no"} · Last check: ${lastPoll.at ? Math.round((Date.now() - lastPoll.at) / 1000) + "s ago" : "never"}`;
+  $("diagState").textContent = `Version web-tab-2 · ${IS_PHONE ? "phone" : "computer, plays in a browser tab"} · Awake: ${spotifyAwake() ? "yes" : "no"} · Phone known: ${knownDevice ? "yes" : "no"} · Last check: ${lastPoll.at ? Math.round((Date.now() - lastPoll.at) / 1000) + "s ago" : "never"}`;
   $("diagLog").textContent = spLog.slice().reverse().join("\n") || "No Spotify activity yet.";
   $("diagDlg").showModal();
 });
