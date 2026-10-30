@@ -194,6 +194,14 @@ body.gated { overflow: hidden; }
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 .wakebar span { flex: 1; min-width: 0; }
 .wakebar .btn { flex: none; justify-content: center; background: #1d1a2b; color: #fff; border-color: #1d1a2b; }
+.cklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 55vh; overflow-y: auto; }
+.ckrow { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 10px; background: var(--bg); }
+.ckrow.ckbad { outline: 1.5px solid var(--danger); }
+.ckmark { width: 18px; flex: none; font-weight: 800; text-align: center; }
+.ckbad .ckmark { color: var(--danger); }
+.cktext { display: grid; gap: 2px; min-width: 0; }
+.cktext strong { font-size: 15px; }
+.cktext span { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
 .diag { margin: 0; max-height: 50vh; overflow: auto; font: 12px/1.45 ui-monospace, Menlo, monospace; background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; padding: 10px; white-space: pre-wrap; }
 .pltext { cursor: pointer; }
 body.has-player { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
@@ -237,6 +245,7 @@ img { max-width: 100%; }
         <button type="button" data-mode="web" aria-pressed="false">Web player</button>
       </div>
       <button class="toggle" id="editToggle" aria-pressed="false" hidden>Edit characters</button>
+      <button id="checkOpen" type="button">Check songs</button>
       <button id="disconnectBtn" hidden>Disconnect GitHub</button>
       <button id="spConnect" class="spbtn" hidden>Connect Spotify for repeat</button>
       <button id="spPause" class="spbtn" hidden>Pause music</button>
@@ -385,6 +394,15 @@ img { max-width: 100%; }
     </a>
   </div>
 </div>
+<dialog id="checkDlg">
+  <div class="sheet">
+    <div class="row"><h2 style="margin:0;font-family:var(--display)">Song check</h2><div class="right"><button type="button" id="checkClose">Done</button></div></div>
+    <p class="note" style="margin:0" id="checkSummary"></p>
+    <p class="note" style="margin:0">Asks Spotify whether each song plays for your account's country. Songs that don't are switched to a version that does when Spotify has one.</p>
+    <ul class="cklist" id="checkList"></ul>
+    <button type="button" class="primary" id="checkRun">Check all songs again</button>
+  </div>
+</dialog>
 <dialog id="diagDlg">
   <div class="sheet">
     <div class="row"><h2 style="margin:0;font-family:var(--display)">Spotify details</h2><div class="right"><button type="button" id="diagClose">Done</button></div></div>
@@ -508,7 +526,7 @@ function render() {
     const n = document.createElement("div"); n.className = "name"; n.textContent = it.name || "Untitled";
     const s = document.createElement("div"); s.className = "song"; s.innerHTML = SPOTIFY_ICON;
     const songText = document.createElement("span"); songText.textContent = it.songName || ("Spotify " + kindOf(it.spotify)); songText.title = songText.textContent; s.append(songText);
-    if (songBroken(it)) { s.classList.add("broken"); songText.textContent = "Song link not working"; songText.title = "Spotify can't find this song. Tap Edit and paste a new Spotify link."; }
+    if (songBroken(it)) { s.classList.add("broken"); songText.textContent = linkCheck[spUri(it.spotify)?.uri]?.r === "blocked" ? "Not available in your region" : "Song link not working"; songText.title = brokenMsg(it); }
     const tt = tagsOf(it);
     if (tt.length) { const tw = document.createElement("div"); tw.className = "tiletags"; tt.forEach((t) => { const x = document.createElement("span"); x.textContent = "#" + t; tw.append(x); }); lab.append(tw); }
     lab.append(n, s); el.append(lab);
@@ -955,14 +973,14 @@ async function findSongs() {
   try {
     for (const x of todo) {
       try {
-        const r = await spApi("/search?" + new URLSearchParams({ q: x.spotifySearch, type: "track", limit: "1", market: "from_token" }));
-        const t = r?.tracks?.items?.[0];
+        const r = await spApi("/search?" + new URLSearchParams({ q: x.spotifySearch, type: "track", limit: "10", market: "from_token" }));
+        const t = (r?.tracks?.items || []).find((h) => h.is_playable !== false); // first result that plays in this region
         if (t?.id) { found[x.spotifySearch] = { url: "https://open.spotify.com/track/" + t.id, name: t.name }; lsSet("songFind", JSON.stringify(found)); }
         logSp(`found song for ${x.name}: ${t ? t.name + " · " + (t.artists || []).map((a) => a.name).join(", ") : "nothing"}`);
       } catch (e) { logSp(`song search for ${x.name} failed (${e.reason || e.status})`); }
       await sleep(400);
     }
-    state.items = applyFound(state.items); render();
+    state.items = applyFixes(applyFound(state.items)); render(); checkAllSongs();
     // Save the links for everyone when this device can write to GitHub.
     if (token && state.items.some((x) => x.spotifySearch && x.spotify)) {
       const next = state.items.map((x) => (x.spotifySearch && x.spotify ? (({ spotifySearch, ...rest }) => rest)(x) : x));
@@ -981,7 +999,7 @@ async function refresh(first) {
       items = withIds(Array.isArray(d) ? d : d.characters || []);
     }
     const rawJson = JSON.stringify(items);
-    if (first || rawJson !== lastFileJson) { lastFileJson = rawJson; state.items = applyFound(items); state.loaded = true; render(); if (!first) checkAllSongs(); findSongs(); }
+    if (first || rawJson !== lastFileJson) { lastFileJson = rawJson; state.items = applyFixes(applyFound(items)); state.loaded = true; render(); if (!first) checkAllSongs(); findSongs(); }
     $("status").hidden = true;
   } catch { if (first) showStatus("Couldn't load the characters. Reload the page to try again."); }
   finally { refreshing = false; }
@@ -1189,48 +1207,123 @@ function normalizeState(out, path) {
   return out;
 }
 function logSp(line) { spLog.push(new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" }) + "  " + line); if (spLog.length > 40) spLog.shift(); }
-// ---- Song link check: finds links Spotify doesn't recognize (a wrong or removed song), so they can be fixed ----
-// Results are kept per link for a week. A new link is checked fresh, since it's a different key.
-const linkCheck = JSON.parse(lsGet("songCheck") || "{}");
+// ---- Song check: asks Spotify, for this account's country, whether each song can actually play. ----
+// "market=from_token" makes Spotify answer for the signed-in account's region (is_playable).
+// A song that can't play here gets swapped for a version of the same song that can, when Spotify has one.
+// Results are kept per link for a week; a new link is checked fresh.
+const linkCheck = JSON.parse(lsGet("songCheck2") || "{}");
+const songFix = JSON.parse(lsGet("songFix") || "{}"); // original song uri -> { url, name } that plays here
 const CHECK_TTL = 7 * 864e5;
-function songBroken(it) { const u = spUri(it.spotify); return !!u && linkCheck[u.uri]?.r === "bad"; }
-function brokenMsg(it) { return `${it.name}'s song link doesn't work on Spotify. Tap Edit, open ${it.name} and paste a new link from Spotify.`; }
+const saveCheck = () => { lsSet("songCheck2", JSON.stringify(linkCheck)); lsSet("songFix", JSON.stringify(songFix)); };
+function songBroken(it) { const u = spUri(it.spotify); return !!u && ["bad", "blocked"].includes(linkCheck[u.uri]?.r); }
+function brokenMsg(it) {
+  const r = linkCheck[spUri(it.spotify)?.uri]?.r;
+  return r === "blocked" ? `${it.name}'s song isn't available in your region on Spotify. Tap Edit, open ${it.name} and paste a link to another version.`
+    : `${it.name}'s song link doesn't work on Spotify. Tap Edit, open ${it.name} and paste a new link from Spotify.`;
+}
+async function findPlayableVersion(name, artist, avoidId) {
+  const tries = [artist ? `track:"${name}" artist:"${artist}"` : "", `${name} ${artist || ""}`.trim()].filter(Boolean);
+  for (const q of tries) {
+    try {
+      const r = await spApi("/search?" + new URLSearchParams({ q, type: "track", limit: "10", market: "from_token" }));
+      const hit = (r?.tracks?.items || []).find((t) => t.id !== avoidId && t.is_playable !== false && t.name.toLowerCase().startsWith(name.toLowerCase().slice(0, 12)));
+      if (hit) return hit;
+    } catch {}
+    await sleep(500);
+  }
+  return null;
+}
 async function checkSong(it, force) {
   const u = spUri(it.spotify); if (!u || !sp.connected()) return null;
   const c = linkCheck[u.uri];
   if (!force && c && Date.now() - c.at < CHECK_TTL) return c.r;
-  const id = u.uri.split(":")[2], path = { track: "/tracks/", album: "/albums/", playlist: "/playlists/", episode: "/episodes/", artist: "/artists/" }[u.type] + id;
-  let r = "ok", name = "";
+  const id = u.uri.split(":")[2];
+  let r = "ok", name = "", artist = "";
   try {
-    const d = await spApi(path + (u.type === "playlist" ? "?fields=name" : ""));
-    name = d?.name || "";
-    if (Array.isArray(d?.available_markets) && u.type !== "playlist" && d.available_markets.length === 0 && u.type !== "artist") r = "bad";
+    if (u.type === "track") {
+      const t = await spApi(`/tracks/${id}?market=from_token`);
+      name = t?.name || ""; artist = t?.artists?.[0]?.name || "";
+      if (t?.is_playable === false) r = "blocked";
+    } else if (u.type === "album") {
+      const al = await spApi(`/albums/${id}?market=from_token`);
+      name = al?.name || ""; artist = al?.artists?.[0]?.name || "";
+      const first = al?.tracks?.items?.[0];
+      if (first && first.is_playable === false) r = "blocked";
+    } else if (u.type === "episode") {
+      const ep = await spApi(`/episodes/${id}?market=from_token`); name = ep?.name || "";
+      if (ep?.is_playable === false) r = "blocked";
+    } else { r = "ok"; } // playlists and artists can't be checked this way
   } catch (e) {
     if (e.status === 404 || e.status === 400) r = "bad";
     else return null; // signed out, offline or rate limited: don't decide
   }
-  linkCheck[u.uri] = { r, at: Date.now(), name };
-  lsSet("songCheck", JSON.stringify(linkCheck));
-  if (r === "bad") logSp(`${it.name}: Spotify doesn't recognize this song link`);
+  if (r !== "ok" && u.type === "track") {
+    const hit = await findPlayableVersion(name || it.songName || it.name, name ? artist : "", id);
+    if (hit) {
+      songFix[u.uri] = { url: "https://open.spotify.com/track/" + hit.id, name: hit.name, artist: hit.artists?.[0]?.name || "" };
+      logSp(`${it.name}: "${name || it.songName}" ${r === "blocked" ? "doesn't play in your region" : "link is broken"}. Switched to "${hit.name}" by ${hit.artists?.[0]?.name || "?"}.`);
+      r = "fixed";
+    }
+  }
+  linkCheck[u.uri] = { r, at: Date.now(), name, artist };
+  saveCheck();
+  if (r === "blocked" || r === "bad") logSp(brokenMsg(it));
   return r;
 }
-let checkingSongs = false, lastTapAt = 0;
-async function checkAllSongs() {
+// Swap in versions that play here (used for every character, not only searched ones).
+function applyFixes(items) {
+  return items.map((x) => { const f = songFix[spUri(x.spotify)?.uri]; return f ? { ...x, spotify: f.url } : x; });
+}
+let checkingSongs = false, lastTapAt = 0, checkProgress = null;
+async function checkAllSongs(force) {
   if (checkingSongs || !sp.connected()) return;
   checkingSongs = true;
   try {
-    const todo = state.items.filter((it) => { const u = spUri(it.spotify); const c = u && linkCheck[u.uri]; return u && !(c && Date.now() - c.at < CHECK_TTL); });
-    let changed = false;
-    // Slow and in the background so the checks never crowd out a tap on a song (Spotify limits requests per minute).
+    const todo = state.items.filter((it) => { const u = spUri(it.spotify); const c = u && linkCheck[u.uri]; return u && (force || !(c && Date.now() - c.at < CHECK_TTL)); });
+    checkProgress = { done: 0, total: todo.length }; renderCheck();
+    let fixed = 0;
     for (const it of todo) {
-      while (Date.now() - lastTapAt < 15000) await sleep(2000);
-      const before = songBroken(it); const r = await checkSong(it); if (r == null) break; if (songBroken(it) !== before) changed = true;
-      await sleep(2500);
+      while (Date.now() - lastTapAt < 15000) await sleep(2000); // never crowd out a tap on a song
+      const r = await checkSong(it, force); if (r == null) break;
+      if (r === "fixed") fixed++;
+      checkProgress.done++; renderCheck();
+      await sleep(window.__fast ? 5 : 700);
     }
-    if (changed) render();
+    checkProgress = null;
+    state.items = applyFixes(state.items); render(); renderCheck();
+    if (fixed && token) { try { await saveAll(state.items, `Switch ${fixed} song${fixed > 1 ? "s" : ""} to versions that play in this region`); } catch {} }
     const bad = state.items.filter(songBroken);
-    if (bad.length) toast(bad.length === 1 ? brokenMsg(bad[0]) : `${bad.length} song links don't work on Spotify: ${bad.map((x) => x.name).join(", ")}. Tap Edit to paste new links.`);
-  } finally { checkingSongs = false; }
+    if (fixed || bad.length) toast(`Song check: ${fixed ? fixed + " switched to a version that plays here" : ""}${fixed && bad.length ? ", " : ""}${bad.length ? bad.length + " need a new link (" + bad.map((x) => x.name).join(", ") + ")" : ""}.`);
+  } finally {
+    checkingSongs = false; checkProgress = null; renderCheck();
+    // Songs that got links while this check ran (e.g. just found by search) get checked too.
+    if (sp.connected() && state.items.some((it) => { const u = spUri(it.spotify); return u && !linkCheck[u.uri] && !songFix[u.uri]; })) setTimeout(() => checkAllSongs(), 1000);
+  }
+}
+function renderCheck() {
+  if (!$("checkList") || !$("checkDlg").open) return;
+  const rows = state.items.slice().sort((a, b) => a.name.localeCompare(b.name));
+  const label = (it) => {
+    const u = spUri(it.spotify); if (!u) return ["…", "Looking up the song"];
+    const c = linkCheck[u.uri];
+    const orig = Object.entries(songFix).find(([, f]) => f.url === it.spotify);
+    if (orig) return ["↻", `Switched to a version that plays here: ${orig[1].name}${orig[1].artist ? " · " + orig[1].artist : ""}`];
+    if (!c) return ["…", "Not checked yet"];
+    return { ok: ["✓", `Plays · ${c.name || it.songName}${c.artist ? " · " + c.artist : ""}`], fixed: ["↻", "Switched to a version that plays here"],
+      blocked: ["✗", `Not available in your region: ${c.name || it.songName}. Paste another link.`], bad: ["✗", "Spotify doesn't know this link. Paste a new one."] }[c.r] || ["…", ""];
+  };
+  $("checkList").textContent = "";
+  let okN = 0, badN = 0;
+  rows.forEach((it) => {
+    const [mark, text] = label(it); if (mark === "✓" || mark === "↻") okN++; if (mark === "✗") badN++;
+    const li = document.createElement("li"); li.className = "ckrow" + (mark === "✗" ? " ckbad" : "");
+    const m = document.createElement("span"); m.className = "ckmark"; m.textContent = mark;
+    const t = document.createElement("div"); t.className = "cktext";
+    const n = document.createElement("strong"); n.textContent = it.name; const d = document.createElement("span"); d.textContent = text;
+    t.append(n, d); li.append(m, t); $("checkList").append(li);
+  });
+  $("checkSummary").textContent = checkProgress ? `Checking ${checkProgress.done} of ${checkProgress.total}…` : `${okN} of ${rows.length} play in your region${badN ? ` · ${badN} need a new link` : ""}`;
+  $("checkRun").disabled = !!checkProgress || !sp.connected();
 }
 async function spApi(path, opts = {}, attempt = 0) {
   const t0 = performance.now(), label = (opts.method || "GET") + " " + path.split("?")[0].replace("/me/player", "player");
@@ -1524,6 +1617,9 @@ document.querySelector(".pltext").addEventListener("click", () => {
   $("diagDlg").showModal();
 });
 $("diagClose").addEventListener("click", () => $("diagDlg").close());
+$("checkOpen").addEventListener("click", () => { $("checkDlg").showModal(); renderCheck(); if (!sp.connected()) $("checkSummary").textContent = "Connect Spotify first, then check."; });
+$("checkClose").addEventListener("click", () => $("checkDlg").close());
+$("checkRun").addEventListener("click", () => { lastTapAt = 0; checkAllSongs(true); });
 $("wakeOpen").addEventListener("click", (e) => { const it = wakeFor; if (it) { hideWake(); pendingPlay = it; showStarting(it); if (window.__testOpen) { e.preventDefault(); window.__testOpen(e.currentTarget.href); } } });
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 try { navigator.storage?.persist?.(); } catch {}
