@@ -608,14 +608,14 @@
     },
     {
       "id": "fireman-49",
-      "name": "Fireman",
-      "songName": "Fireman Sam Theme",
-      "spotify": "https://open.spotify.com/track/5c8avkEPunHcCzAadHTe1K",
+      "name": "Firefighter",
+      "songName": "The Firefighter Song",
+      "spotify": "https://open.spotify.com/track/47WDVCirJScsIYhLpIEBZe",
       "tags": [
         "tv",
         "classic"
       ],
-      "photo": "",
+      "photo": "photos/firefighter-mvuim0xq.jpg",
       "order": 49,
       "createdAt": 1793331466570
     },
