@@ -1121,6 +1121,21 @@ let resumedAt = 0;
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") resumedAt = Date.now(); });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const spLog = [], devNames = {};
+// Make Spotify's report recognizable to the board:
+// - "relinked" tracks: Spotify swaps in a regional copy with a different id (the original is in linked_from)
+// - album/playlist links: Spotify reports the track inside; match on the album/playlist instead
+let lastRaw = { at: 0, p: null };
+function normalizeState(out, path) {
+  if (!out || !(path === "/me/player" || path.startsWith("/me/player/currently"))) return out;
+  if (out.item) {
+    const linked = out.item.linked_from?.uri, ctx = out.context?.uri;
+    const boardUris = new Set(state.items.map((x) => spUri(x.spotify)?.uri).filter(Boolean));
+    if (linked && boardUris.has(linked)) out = { ...out, item: { ...out.item, uri: linked } };
+    else if (ctx && boardUris.has(ctx) && !boardUris.has(out.item.uri)) out = { ...out, item: { ...out.item, uri: ctx } };
+  }
+  if (path === "/me/player") lastRaw = { at: Date.now(), p: out };
+  return out;
+}
 function logSp(line) { spLog.push(new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" }) + "  " + line); if (spLog.length > 40) spLog.shift(); }
 // ---- Song link check: finds links Spotify doesn't recognize (a wrong or removed song), so they can be fixed ----
 // Results are kept per link for a week. A new link is checked fresh, since it's a different key.
@@ -1168,7 +1183,7 @@ async function checkAllSongs() {
 async function spApi(path, opts = {}, attempt = 0) {
   const t0 = performance.now(), label = (opts.method || "GET") + " " + path.split("?")[0].replace("/me/player", "player");
   try {
-    const out = await spApiInner(path, opts, attempt);
+    const out = normalizeState(await spApiInner(path, opts, attempt), path);
     let info = out == null ? "(empty)" : "";
     if (out && (path === "/me/player" || path.startsWith("/me/player/currently"))) info = `${out.is_playing ? "playing" : "paused"} "${out.item?.name || "no song info"}" on ${out.device?.name || "?"} (${out.device?.type || "?"})`;
     if (out && path.startsWith("/me/player/devices")) info = (out.devices || []).map((d) => `${d.name} (${d.type}${d.is_active ? ", active" : ""})`).join(", ") || "no devices";
@@ -1338,7 +1353,10 @@ async function playOnSpotify(it, isRetry) {
     // iPhone lets Spotify skip tracks in the background (like the lock screen's next button) but not start a new song.
     // So while a song is already playing on this phone, switch by queueing the new song and skipping to it.
     // The same trick works on a computer: the Spotify desktop app sometimes says OK to "play this song" and loads nothing.
-    const canSkip = devId && (u.type === "track" || u.type === "episode") && player?.is_playing && player?.device?.id === devId;
+    // Decide from what Spotify reported most recently (the bar's copy can lag behind a song change).
+    let live = Date.now() - lastRaw.at < 6000 ? lastRaw.p : null;
+    if (devId && !live) { try { live = await spApi("/me/player"); } catch {} if (seq !== playSeq) return; }
+    const canSkip = devId && (u.type === "track" || u.type === "episode") && live?.is_playing && live?.device?.id === devId;
     if (canSkip && await skipTo(u, devId, seq)) { /* switched by skipping */ }
     else try {
       await spApi("/me/player/play" + (devId ? "?device_id=" + encodeURIComponent(devId) : ""), { method: "PUT", body: JSON.stringify(body) });
@@ -1379,7 +1397,7 @@ document.addEventListener("visibilitychange", () => {
     const it = pendingPlay, u = spUri(it.spotify); pendingPlay = null;
     setTimeout(async () => {
       let p = null; try { p = await spApi("/me/player"); } catch {}
-      if (u && p?.is_playing && p.item?.uri === u.uri) {
+      if (u && p?.is_playing && (p.item?.uri === u.uri || isHere(p.device))) { // never resend "play" over a song that's playing
         // The Spotify app sends songs to whatever device it's connected to (like a Mac). Pull it back to this phone.
         if (!isHere(p.device)) {
           const ok = await moveToPhone();
