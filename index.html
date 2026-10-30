@@ -759,7 +759,7 @@ function saveQueue() { try { localStorage.setItem("songQueue", JSON.stringify(st
 function toggleQueue(it) {
   if (state.queue.includes(it.id)) { state.queue = state.queue.filter((x) => x !== it.id); toast(`Removed ${it.name} from the queue`); }
   else { state.queue.push(it.id); toast(state.queue.length === 1 ? `${it.name} is up next` : `Added ${it.name} · #${state.queue.length} in the queue`); }
-  saveQueue(); render();
+  saveQueue(); render(); syncRepeat();
 }
 function playNext() {
   const id = state.queue.shift(); saveQueue();
@@ -788,7 +788,7 @@ function renderQueue() {
     const mk = (label, html, fn, dis) => { const b = document.createElement("button"); b.type = "button"; b.className = "qbtn"; b.innerHTML = html; b.setAttribute("aria-label", label); b.disabled = !!dis; b.addEventListener("click", fn); return b; };
     const up = mk(`Move ${it.name} up`, "▲", () => { [state.queue[i - 1], state.queue[i]] = [state.queue[i], state.queue[i - 1]]; saveQueue(); render(); }, i === 0);
     const dn = mk(`Move ${it.name} down`, "▼", () => { [state.queue[i + 1], state.queue[i]] = [state.queue[i], state.queue[i + 1]]; saveQueue(); render(); }, i === n - 1);
-    const rm = mk(`Remove ${it.name}`, "×", () => { state.queue.splice(i, 1); saveQueue(); render(); });
+    const rm = mk(`Remove ${it.name}`, "×", () => { state.queue.splice(i, 1); saveQueue(); render(); syncRepeat(); });
     row.append(num, pic, txt, up, dn, rm); list.append(row);
   });
 }
@@ -942,6 +942,7 @@ function showPlayer(p) {
   player = p;
   const item = p?.item, playing = !!p?.is_playing;
   const ch = item && state.items.find((x) => (spUri(x.spotify)?.uri) === item.uri);
+  if (ch) curUri = item.uri;
   if (ch && state.playing !== ch.id) { state.playing = ch.id; render(); }
   $("plTitle").textContent = item ? (ch?.name ? `${ch.name} · ${item.name}` : item.name) : "Nothing playing";
   const artists = item?.artists?.map((a) => a.name).join(", ") || item?.show?.name || "";
@@ -953,6 +954,7 @@ function showPlayer(p) {
 async function pollPlayer() {
   clearTimeout(pollTimer);
   if (!sp.connected()) return;
+  let wait = 4000;
   if (document.visibilityState === "visible") {
     let p, err = null;
     try { p = await spApi("/me/player"); }
@@ -967,9 +969,20 @@ async function pollPlayer() {
       delete $("plSub").dataset.err;
       lastPoll = { at: Date.now(), active: !!(p?.device?.is_active || p?.is_playing) };
       showPlayer(p);
+      // Queue: when the board's song finishes (Spotify stops, or moves on to its own pick), start the next queued song.
+      if (state.queue.length && curUri && !(hold && Date.now() < hold.until)) {
+        const same = p?.item?.uri === curUri;
+        if (nearEnd && (!same || (!p?.is_playing && !p?.progress_ms))) { nearEnd = false; curUri = null; playNext(); return; }
+        if (same && p.is_playing && p.item.duration_ms) {
+          const left = p.item.duration_ms - (p.progress_ms || 0);
+          nearEnd = left < 6000;
+          if (left < 4500) wait = Math.max(500, left + 600); // check again right as the song ends
+          if (p.repeat_state && p.repeat_state !== "off") syncRepeat();
+        }
+      }
     }
   }
-  pollTimer = setTimeout(pollPlayer, 4000);
+  pollTimer = setTimeout(pollPlayer, wait);
 }
 $("plToggle").addEventListener("click", async () => {
   const playing = !!player?.is_playing;
@@ -1060,30 +1073,47 @@ async function openAndPlay(it, skipPause) {
   if (openMode === "app") location.href = linkFor(it.spotify); else window.open(it.spotify, "_blank");
 }
 let pendingPlay = null, pendingRepeat = null, lastPoll = { at: 0, active: false };
+// The board's own song, and whether it was about to finish at the last check (used to start the next queued song).
+let curUri = null, nearEnd = false;
+// A song repeats only when nothing is queued. With songs queued it plays once, then the next one starts.
+function repeatFor(u) { return state.queue.length ? "off" : (u.type === "track" || u.type === "episode" ? "track" : "context"); }
+function syncRepeat() {
+  if (!sp.connected() || !curUri || player?.item?.uri !== curUri) return;
+  const want = repeatFor({ type: curUri.split(":")[1] });
+  if (player.repeat_state !== want) { player = { ...player, repeat_state: want }; setRepeat(want, player.device?.id).catch(() => {}); }
+}
 function spotifyAwake() { return lastPoll.active && Date.now() - lastPoll.at < 15000; }
 async function playOnSpotify(it, isRetry) {
   render();
   const u = spUri(it.spotify);
   if (!u) { window.open(it.spotify, "_blank"); return; }
   showStarting(it);
-  const repeatKind = u.type === "track" || u.type === "episode" ? "track" : "context";
+  const repeatKind = repeatFor(u);
   try {
-    const { devices = [] } = (await spApi("/me/player/devices")) || {};
-    const dev = devices.find((d) => d.is_active) || devices.find((d) => /smartphone|tablet/i.test(d.type)) || devices[0];
-    if (!dev) throw Object.assign(new Error("nodevice"), { reason: "NO_DEVICE" });
+    // If the device list can't be read, fall back to the device the player bar last saw, then to Spotify's active device.
+    let devId = null;
+    try {
+      const { devices = [] } = (await spApi("/me/player/devices")) || {};
+      const dev = devices.find((d) => d.is_active) || devices.find((d) => /smartphone|tablet/i.test(d.type)) || devices[0];
+      devId = dev?.id || null;
+    } catch {}
+    devId = devId || player?.device?.id || null;
     const body = u.type === "track" || u.type === "episode" ? { uris: [u.uri] } : { context_uri: u.uri };
-    await spApi("/me/player/play?device_id=" + encodeURIComponent(dev.id), { method: "PUT", body: JSON.stringify(body) });
+    await spApi("/me/player/play" + (devId ? "?device_id=" + encodeURIComponent(devId) : ""), { method: "PUT", body: JSON.stringify(body) });
     hold = { playing: true, until: Date.now() + 6000, uri: u.uri }; setIcon(true);
-    setRepeat(repeatKind, dev.id).catch(() => new Promise((r) => setTimeout(r, 800)).then(() => setRepeat(repeatKind, dev.id))).catch(() => {});
-    toast(`Playing ${it.name}'s song on repeat`);
+    curUri = u.uri; nearEnd = false;
+    setRepeat(repeatKind, devId).catch(() => new Promise((r) => setTimeout(r, 800)).then(() => setRepeat(repeatKind, devId))).catch(() => {});
+    const upNext = state.items.find((x) => x.id === state.queue[0]);
+    toast(upNext ? `Playing ${it.name}'s song. ${upNext.name} is up next` : `Playing ${it.name}'s song on repeat`);
     setTimeout(pollPlayer, 900);
   } catch (e) {
     if (!sp.connected()) { toast("Spotify signed out. Tap Connect Spotify again."); pollPlayer(); return; }
     if (e.reason === "PREMIUM_REQUIRED") { toast("Spotify needs Premium to start songs from the board."); pollPlayer(); return; }
     if (isRetry) { toast("Spotify still isn't ready. Tap the character again."); pollPlayer(); return; }
     // Couldn't start it remotely: open the song in the Spotify app, and make sure it's playing when you come back.
+    // Pause the current song first, since Spotify won't autoplay a linked song while another one is playing.
     lastPoll.active = false;
-    openAndPlay(it, true);
+    openAndPlay(it);
   }
 }
 document.addEventListener("visibilitychange", () => {
@@ -1094,7 +1124,8 @@ document.addEventListener("visibilitychange", () => {
       let p = null; try { p = await spApi("/me/player"); } catch {}
       if (u && p?.is_playing && p.item?.uri === u.uri) {
         hold = { playing: true, until: Date.now() + 6000, uri: u.uri };
-        setRepeat(u.type === "track" || u.type === "episode" ? "track" : "context", p.device?.id).catch(() => {});
+        curUri = u.uri; nearEnd = false;
+        setRepeat(repeatFor(u), p.device?.id).catch(() => {});
         pollPlayer();
       } else playOnSpotify(it, true);
     }, 500);
@@ -1102,7 +1133,7 @@ document.addEventListener("visibilitychange", () => {
   }
   if (pendingRepeat) {
     const it = pendingRepeat, u = spUri(it.spotify); pendingRepeat = null;
-    if (u) { hold = { playing: true, until: Date.now() + 6000, uri: u.uri }; setRepeat(u.type === "track" || u.type === "episode" ? "track" : "context").catch(() => {}); }
+    if (u) { hold = { playing: true, until: Date.now() + 6000, uri: u.uri }; curUri = u.uri; nearEnd = false; setRepeat(repeatFor(u)).catch(() => {}); }
   }
   pollPlayer();
 });
@@ -1137,7 +1168,7 @@ async function spInit() {
 }
 $("plQueue").addEventListener("click", () => { renderQueue(); $("queueDlg").showModal(); });
 $("qClose").addEventListener("click", () => $("queueDlg").close());
-$("qClear").addEventListener("click", () => { state.queue = []; saveQueue(); render(); });
+$("qClear").addEventListener("click", () => { state.queue = []; saveQueue(); render(); syncRepeat(); });
 $("qPlayNext").addEventListener("click", () => { $("queueDlg").close(); playNext(); });
 $("plNext").addEventListener("click", () => playNext());
 start();
