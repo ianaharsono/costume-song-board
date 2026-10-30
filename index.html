@@ -1267,7 +1267,7 @@ async function skipTo(u, devId, seq) {
       await spApi("/me/player/next?" + d.slice(1), { method: "POST" });
       await sleep(500);
       let p = null; try { p = await spApi("/me/player"); } catch {}
-      if (p?.item?.uri === u.uri) return true;
+      if (p?.item?.uri === u.uri) { if (!p.is_playing) await spApi("/me/player/play?" + d.slice(1), { method: "PUT" }).catch(() => {}); return true; }
       if (p && p.item && p.item.uri !== u.uri && i < 2) continue; // an older queued song came first: skip past it
       if (!p?.item) return !!p?.is_playing;
     }
@@ -1287,6 +1287,11 @@ async function verifyPlaying(it, u, devId, body, seq) {
       // A device Spotify still lists can stop listening (the app was closed or the computer slept).
       // Handing playback to it again usually wakes it, then the song is sent once more.
       logSp(`${it.name}: Spotify said OK but isn't playing. Waking the device and sending again.`);
+      if (devId && (u.type === "track" || u.type === "episode")) {
+        logSp(`${it.name}: trying queue + skip instead.`);
+        if (await skipTo(u, devId, seq)) continue;
+        if (seq !== playSeq) return;
+      }
       try {
         if (devId) { await spApi("/me/player", { method: "PUT", body: JSON.stringify({ device_ids: [devId], play: false }) }).catch(() => {}); await sleep(800); }
         await spApi("/me/player/play" + (devId ? "?device_id=" + encodeURIComponent(devId) : ""), { method: "PUT", body: JSON.stringify(body) });
@@ -1332,7 +1337,8 @@ async function playOnSpotify(it, isRetry) {
     const body = u.type === "track" || u.type === "episode" ? { uris: [u.uri] } : { context_uri: u.uri };
     // iPhone lets Spotify skip tracks in the background (like the lock screen's next button) but not start a new song.
     // So while a song is already playing on this phone, switch by queueing the new song and skipping to it.
-    const canSkip = IS_PHONE && devId && (u.type === "track" || u.type === "episode") && player?.is_playing && player?.device?.id === devId;
+    // The same trick works on a computer: the Spotify desktop app sometimes says OK to "play this song" and loads nothing.
+    const canSkip = devId && (u.type === "track" || u.type === "episode") && player?.is_playing && player?.device?.id === devId;
     if (canSkip && await skipTo(u, devId, seq)) { /* switched by skipping */ }
     else try {
       await spApi("/me/player/play" + (devId ? "?device_id=" + encodeURIComponent(devId) : ""), { method: "PUT", body: JSON.stringify(body) });
