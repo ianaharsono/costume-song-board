@@ -554,6 +554,18 @@
       "photo": "photos/skeleton-mvuewyim.jpg",
       "order": 44,
       "createdAt": 1793330901684
+    },
+    {
+      "id": "zombie-mvuf0fjm",
+      "name": "Zombie",
+      "songName": "Thriller",
+      "spotify": "https://open.spotify.com/track/3S2R0EVwBSAVMd5UMgKTL0",
+      "tags": [
+        "classic"
+      ],
+      "photo": "photos/zombie-mvuf0fkw.jpg",
+      "order": 45,
+      "createdAt": 1793331063932
     }
   ]
 }
