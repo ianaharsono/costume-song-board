@@ -998,7 +998,8 @@ async function pollPlayer() {
       if (!$("plSub").dataset.err) { $("plSub").textContent = `Can't read Spotify right now (error ${err.status || "?"}${err.reason ? " " + err.reason : ""})`; $("plSub").dataset.err = "1"; }
     } else {
       delete $("plSub").dataset.err;
-      lastPoll = { at: Date.now(), active: !!(p?.device?.is_active || p?.is_playing) };
+      const here = !IS_PHONE || /smartphone|tablet/i.test(p?.device?.type || "");
+      lastPoll = { at: Date.now(), active: here && !!(p?.device?.is_active || p?.is_playing) };
       if (p?.device?.id) {
         devNames[p.device.id] = p.device.name;
         // Only lock onto a phone or tablet when the board itself is on one, so songs don't go to a speaker or computer.
@@ -1184,7 +1185,7 @@ function syncRepeat() {
   if (player.repeat_state !== want) { player = { ...player, repeat_state: want }; setRepeat(want, player.device?.id).catch(() => {}); }
 }
 // Spotify counts as awake if a check saw it playing in the last 30 seconds, or a song was started from here in the last minute.
-function spotifyAwake() { return (lastPoll.active && Date.now() - lastPoll.at < 30000) || Date.now() - lastPlayOk < 60000; }
+function spotifyAwake() { return (lastPoll.active && Date.now() - lastPoll.at < 30000) || (Date.now() - lastPlayOk < 60000 && !!knownDevice); }
 let playSeq = 0, knownDevice = null, lastPlayOk = 0;
 async function playOnSpotify(it, isRetry) {
   const seq = ++playSeq;
@@ -1203,11 +1204,13 @@ async function playOnSpotify(it, isRetry) {
         if (!devices.length) { await sleep(1000); ({ devices = [] } = (await spApi("/me/player/devices")) || {}); }
         devices.forEach((d) => { devNames[d.id] = d.name; });
         const phones = devices.filter((d) => /smartphone|tablet/i.test(d.type));
-        const dev = (IS_PHONE ? phones.find((d) => d.is_active) || phones[0] : null) || devices.find((d) => d.is_active) || devices[0];
+        const dev = IS_PHONE ? phones.find((d) => d.is_active) || phones[0] : devices.find((d) => d.is_active) || devices[0];
         devId = dev?.id || null;
       } catch {}
     }
     if (seq !== playSeq) return; // a newer tap took over
+    // On a phone with Spotify asleep there, don't let Spotify pick another device: open the app here instead.
+    if (IS_PHONE && !devId) throw Object.assign(new Error("nophone"), { status: 404, reason: "PHONE_ASLEEP" });
     const body = u.type === "track" || u.type === "episode" ? { uris: [u.uri] } : { context_uri: u.uri };
     try {
       await spApi("/me/player/play" + (devId ? "?device_id=" + encodeURIComponent(devId) : ""), { method: "PUT", body: JSON.stringify(body) });
