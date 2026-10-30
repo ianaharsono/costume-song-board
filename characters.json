@@ -810,12 +810,12 @@
     {
       "id": "fairy-65",
       "name": "Fairy",
-      "songName": "Dance of the Sugar Plum Fairy",
+      "songName": "Little Fairy",
       "spotify": "https://open.spotify.com/track/4gKm5GHr5Jkls4k18kAbO3",
       "tags": [
         "classic"
       ],
-      "photo": "",
+      "photo": "photos/fairy-mvuih6hz.jpg",
       "order": 65,
       "createdAt": 1793332663018
     },
