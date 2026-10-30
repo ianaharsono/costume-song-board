@@ -834,13 +834,12 @@
       "id": "mandalorian-1a18db592aa",
       "name": "Mandalorian",
       "songName": "The Mandalorian",
-      "spotify": "",
-      "spotifySearch": "The Mandalorian Ludwig Göransson",
+      "spotify": "https://open.spotify.com/track/6tJFtthY0rI1x06qb8NjK0",
       "tags": [
         "movies",
         "superhero"
       ],
-      "photo": "",
+      "photo": "photos/mandalorian-mvvepony.jpg",
       "order": 67,
       "createdAt": 1793378849450
     },
