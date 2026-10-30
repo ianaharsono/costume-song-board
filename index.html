@@ -861,7 +861,8 @@ function openSpotifyLink(it) {
   if (window.__testOpen) return window.__testOpen(songLink(it));
   // Web player: reuse the same Spotify tab every time. App mode: hand the link to the Spotify app.
   const w = window.open(songLink(it), spTab());
-  if (w && openMode === "web") { try { w.focus(); } catch {} }
+  if (!w && reuseTab()) window.open(songLink(it), "_blank");
+  else if (w && reuseTab()) { try { w.focus(); } catch {} }
 }
 function tapPlay(it, e) {
   if (songBroken(it)) { e?.preventDefault(); e?.stopPropagation(); toast(brokenMsg(it)); return; }
@@ -947,8 +948,9 @@ async function deleteFile(path, message) {
   return gh(path, { method: "DELETE", body: JSON.stringify({ message, sha: f.sha, branch: "main" }) });
 }
 const SP_TAB = "costume-song-board-spotify";
-function spTab() { return openMode === "web" ? SP_TAB : "_blank"; }
-function aimLink(a) { a.target = spTab(); a.rel = openMode === "web" ? "" : "noopener"; return a; }
+const reuseTab = () => openMode === "web" && !IS_PHONE;
+function spTab() { return reuseTab() ? SP_TAB : "_blank"; }
+function aimLink(a) { a.target = spTab(); a.rel = reuseTab() ? "" : "noopener"; return a; }
 function songLink(it) {
   if (it.spotify) return linkFor(it.spotify);
   return "https://open.spotify.com/search/" + encodeURIComponent(it.spotifySearch || it.songName || it.name);
@@ -1563,10 +1565,7 @@ async function playOnSpotify(it, isRetry) {
         if (!devices.length) { await sleep(1000); ({ devices = [] } = (await spApi("/me/player/devices")) || {}); }
         devices.forEach((d) => { devNames[d.id] = d.name; });
         const phones = devices.filter((d) => /smartphone|tablet/i.test(d.type));
-        const web = devices.filter((d) => /web player/i.test(d.name || ""));
-        const dev = IS_PHONE ? phones.find((d) => d.is_active) || phones[0]
-          : openMode === "web" && web.length ? web.find((d) => d.is_active) || web[0]
-          : devices.find((d) => d.is_active) || devices[0];
+        const dev = IS_PHONE ? phones.find((d) => d.is_active) || phones[0] : devices.find((d) => d.is_active) || devices[0];
         devId = dev?.id || null;
       } catch {}
     }
