@@ -926,12 +926,11 @@
       "id": "army-1a18db592b1",
       "name": "Army",
       "songName": "The Army Goes Rolling Along",
-      "spotify": "",
-      "spotifySearch": "The Army Goes Rolling Along",
+      "spotify": "https://open.spotify.com/track/77luqu2k2XkzYWRievBov3",
       "tags": [
         "classic"
       ],
-      "photo": "",
+      "photo": "photos/army-mvve4rou.jpg",
       "order": 74,
       "createdAt": 1793378849457
     },
