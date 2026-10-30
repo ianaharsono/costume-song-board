@@ -723,13 +723,13 @@
     },
     {
       "id": "gabbys-dollhouse-58",
-      "name": "Gabby's Dollhouse",
+      "name": "Gabby",
       "songName": "Hey Gabby!",
       "spotify": "https://open.spotify.com/track/36xw27XcI4mUqFkGKh6LtO",
       "tags": [
         "tv"
       ],
-      "photo": "",
+      "photo": "photos/gabby-mvuio2k8.jpg",
       "order": 58,
       "createdAt": 1793332627979
     },
