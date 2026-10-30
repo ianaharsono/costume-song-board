@@ -999,6 +999,7 @@ async function pollPlayer() {
     } else {
       delete $("plSub").dataset.err;
       const here = !IS_PHONE || /smartphone|tablet/i.test(p?.device?.type || "");
+      if (!here && p?.is_playing && curUri && p.item?.uri === curUri && movedFor !== curUri) { movedFor = curUri; moveToPhone().then((ok) => ok && setTimeout(pollPlayer, 800)); }
       lastPoll = { at: Date.now(), active: here && !!(p?.device?.is_active || p?.is_playing) };
       if (p?.device?.id) {
         devNames[p.device.id] = p.device.name;
@@ -1174,6 +1175,20 @@ function showWake(it, msg) {
 }
 function hideWake() { $("wakeOpen").href = "https://open.spotify.com";  wakeFor = null; $("wakeBar").hidden = true; }
 let wakeFor = null;
+const isHere = (d) => !IS_PHONE || /smartphone|tablet/i.test(d?.type || "");
+// Moves what's playing onto this phone or tablet. Returns false if Spotify doesn't list this phone.
+async function moveToPhone() {
+  try {
+    const { devices = [] } = (await spApi("/me/player/devices")) || {};
+    devices.forEach((d) => { devNames[d.id] = d.name; });
+    const phone = devices.find((d) => /smartphone|tablet/i.test(d.type));
+    if (!phone) return false;
+    await spApi("/me/player", { method: "PUT", body: JSON.stringify({ device_ids: [phone.id], play: true }) });
+    knownDevice = phone.id; lastPlayOk = Date.now();
+    return true;
+  } catch { return false; }
+}
+let movedFor = null;
 let pendingPlay = null, pendingRepeat = null, lastPoll = { at: 0, active: false };
 // The board's own song, and whether it was about to finish at the last check (used to start the next queued song).
 let curUri = null, nearEnd = false;
@@ -1251,6 +1266,8 @@ document.addEventListener("visibilitychange", () => {
     setTimeout(async () => {
       let p = null; try { p = await spApi("/me/player"); } catch {}
       if (u && p?.is_playing && p.item?.uri === u.uri) {
+        // The Spotify app sends songs to whatever device it's connected to (like a Mac). Pull it back to this phone.
+        if (!isHere(p.device)) { const ok = await moveToPhone(); if (!ok) { playOnSpotify(it, true); return; } }
         hold = { playing: true, until: Date.now() + 6000, uri: u.uri };
         curUri = u.uri; nearEnd = false;
         setRepeat(repeatFor(u), p.device?.id).catch(() => {});
