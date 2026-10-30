@@ -379,10 +379,10 @@ img { max-width: 100%; }
     <button type="button" class="plside" id="plNext" aria-label="Play next in queue" disabled>
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 5.8v12.4a.9.9 0 0 0 1.4.75l8.9-6.2a.9.9 0 0 0 0-1.5L6.4 5.05A.9.9 0 0 0 5 5.8z" fill="currentColor"/><rect x="16.6" y="5" width="2.6" height="14" rx="1" fill="currentColor"/></svg>
     </button>
-    <button type="button" class="plbtn" id="plToggle" aria-label="Play">
+    <a class="btn plbtn" id="plToggle" href="#" target="_blank" rel="noopener" role="button" aria-label="Play">
       <svg id="plIconPlay" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" fill="currentColor"/></svg>
       <svg id="plIconPause" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" hidden><rect x="6" y="5" width="4.2" height="14" rx="1.2" fill="currentColor"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.2" fill="currentColor"/></svg>
-    </button>
+    </a>
   </div>
 </div>
 <dialog id="diagDlg">
@@ -786,7 +786,7 @@ function tapPlay(it, e) {
   if (sp.connected()) {
     e?.stopPropagation();
     // iPhone only opens another app during the tap itself, so this choice can't wait for Spotify to answer.
-    if (spotifyAwake()) { e?.preventDefault(); playOnSpotify(it); }
+    if (IS_PHONE ? playingHere() : spotifyAwake()) { e?.preventDefault(); playOnSpotify(it); }
     else if (isLink) { pendingPlay = it; showStarting(it); render(); claimPhone(); logSp("opened Spotify app with " + it.name); if (window.__testOpen) { e.preventDefault(); window.__testOpen(e.currentTarget.href); } }
     else { e?.preventDefault(); openAndPlay(it); }
   } else if (!isLink) {
@@ -970,6 +970,8 @@ function spButtons() {
 // ---- In-board player bar ----
 let player = null, pollTimer = null, hold = null;
 function setIcon(playing) {
+  const cur = state.items.find((x) => x.id === state.playing);
+  if ($("plToggle")) $("plToggle").href = cur ? linkFor(cur.spotify) : "#";
   $("plIconPlay").hidden = playing; $("plIconPause").hidden = !playing;
   $("plToggle").setAttribute("aria-label", playing ? "Pause" : "Play");
 }
@@ -1034,9 +1036,17 @@ async function pollPlayer() {
   }
   pollTimer = setTimeout(pollPlayer, wait);
 }
-$("plToggle").addEventListener("click", async () => {
+$("plToggle").addEventListener("click", async (e) => {
   const current = state.items.find((x) => x.id === state.playing);
   const playing = !!player?.is_playing && spotifyAwake();
+  // On a phone, resuming a paused Spotify has to happen in the Spotify app: let this tap open it as a real link.
+  if (IS_PHONE && !playing && !playingHere() && current) {
+    e.currentTarget.href = linkFor(current.spotify);
+    pendingPlay = current; showStarting(current); render(); claimPhone(); logSp("opened Spotify app with " + current.name);
+    if (window.__testOpen) { e.preventDefault(); window.__testOpen(e.currentTarget.href); }
+    return;
+  }
+  e.preventDefault();
   if (!playing && (!player?.item || !spotifyAwake())) {
     if (current) tapPlay(current, null); else toast("Tap a character to pick a song first.");
     return;
@@ -1271,6 +1281,12 @@ function syncRepeat() {
   if (player.repeat_state !== want) { player = { ...player, repeat_state: want }; setRepeat(want, player.device?.id).catch(() => {}); }
 }
 // Spotify counts as awake if a check saw it playing in the last 30 seconds, or a song was started from here in the last minute.
+// True only when Spotify was just seen actually playing on this phone (paused doesn't count on iPhone).
+function playingHere() {
+  if (Date.now() - lastPlayOk < 4000 && knownDevice) return true; // song just started from the board
+  const p = lastRaw.p;
+  return !!(p?.is_playing && isHere(p.device) && Date.now() - lastRaw.at < 12000);
+}
 function spotifyAwake() { return (lastPoll.active && Date.now() - lastPoll.at < 30000) || (Date.now() - lastPlayOk < 60000 && !!knownDevice); }
 let playSeq = 0, knownDevice = null, lastPlayOk = 0;
 async function skipTo(u, devId, seq) {
