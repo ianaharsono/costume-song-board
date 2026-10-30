@@ -509,7 +509,7 @@ function render() {
     const tt = tagsOf(it);
     if (tt.length) { const tw = document.createElement("div"); tw.className = "tiletags"; tt.forEach((t) => { const x = document.createElement("span"); x.textContent = "#" + t; tw.append(x); }); lab.append(tw); }
     lab.append(n, s); el.append(lab);
-    if (state.playing === it.id && !state.editing) { const b = document.createElement("div"); b.className = "badge"; b.textContent = "Now playing"; el.append(b); }
+    if (state.playing === it.id && !state.editing) { const b = document.createElement("div"); b.className = "badge"; b.textContent = player && !player.is_playing && !(hold && Date.now() < hold.until) ? "Paused" : "Now playing"; el.append(b); }
     const qi = state.queue.indexOf(it.id);
     if (qi >= 0 && !state.editing) { const b = document.createElement("div"); b.className = "qbadge"; b.textContent = qi === 0 ? "Up next" : `Queue #${qi + 1}`; el.append(b); }
     if (state.editing && canReorder) {
@@ -764,7 +764,12 @@ const ICON_PLAY = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="
 const ICON_QUEUE = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 6h12M3 11h12M3 16h7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/><path d="M18 13v7M14.5 16.5h7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 const ICON_QUEUED = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 6h12M3 11h12M3 16h6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/><path d="M13.5 17l2.6 2.6L21.5 14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
 // Hands a song to the Spotify app (or the web player). Kept in one place so it can be tested.
+function claimPhone() {
+  const id = IS_PHONE && sp.connected() && lsGet("spPhone");
+  if (id) spApi("/me/player", { method: "PUT", body: JSON.stringify({ device_ids: [id], play: false }) }).catch(() => {});
+}
 function openSpotifyLink(it) {
+  claimPhone();
   logSp("opened Spotify app with " + (it.name || "song"));
   if (window.__testOpen) return window.__testOpen(linkFor(it.spotify));
   window.open(linkFor(it.spotify), "_blank"); // new tab, so the board stays put if Spotify's site opens instead of the app
@@ -777,7 +782,7 @@ function tapPlay(it, e) {
     e?.stopPropagation();
     // iPhone only opens another app during the tap itself, so this choice can't wait for Spotify to answer.
     if (spotifyAwake()) { e?.preventDefault(); playOnSpotify(it); }
-    else if (isLink) { pendingPlay = it; showStarting(it); render(); logSp("opened Spotify app with " + it.name); if (window.__testOpen) { e.preventDefault(); window.__testOpen(e.currentTarget.href); } }
+    else if (isLink) { pendingPlay = it; showStarting(it); render(); claimPhone(); logSp("opened Spotify app with " + it.name); if (window.__testOpen) { e.preventDefault(); window.__testOpen(e.currentTarget.href); } }
     else { e?.preventDefault(); openAndPlay(it); }
   } else if (!isLink) {
     e?.preventDefault(); openSpotifyLink(it);
@@ -977,7 +982,7 @@ function showPlayer(p) {
   if (ch && state.playing !== ch.id) { state.playing = ch.id; render(); }
   $("plTitle").textContent = item ? (ch?.name ? `${ch.name} · ${item.name}` : item.name) : "Nothing playing";
   const artists = item?.artists?.map((a) => a.name).join(", ") || item?.show?.name || "";
-  $("plSub").textContent = item ? [artists, p.repeat_state === "track" ? "On repeat" : "", p.device?.name ? "on " + p.device.name : ""].filter(Boolean).join(" · ") : "Tap a character to start a song";
+  $("plSub").textContent = item ? [playing ? "" : "Paused", artists, p.repeat_state === "track" ? "On repeat" : "", p.device?.name ? "on " + p.device.name : ""].filter(Boolean).join(" · ") : "Tap a character to start a song";
   const img = item?.album?.images?.slice(-2)[0]?.url || item?.images?.[0]?.url || "";
   $("plArt").hidden = !img; $("plBlank").hidden = !!img; if (img && $("plArt").src !== img) $("plArt").src = img;
   setIcon(playing);
@@ -1003,6 +1008,7 @@ async function pollPlayer() {
       lastPoll = { at: Date.now(), active: here && !!(p?.device?.is_active || p?.is_playing) };
       if (p?.device?.id) {
         devNames[p.device.id] = p.device.name;
+        if (/smartphone|tablet/i.test(p.device.type || "")) lsSet("spPhone", p.device.id);
         // Only lock onto a phone or tablet when the board itself is on one, so songs don't go to a speaker or computer.
         if (!IS_PHONE || /smartphone|tablet/i.test(p.device.type || "")) knownDevice = p.device.id;
       }
@@ -1183,6 +1189,7 @@ async function moveToPhone() {
     devices.forEach((d) => { devNames[d.id] = d.name; });
     const phone = devices.find((d) => /smartphone|tablet/i.test(d.type));
     if (!phone) return false;
+    lsSet("spPhone", phone.id);
     await spApi("/me/player", { method: "PUT", body: JSON.stringify({ device_ids: [phone.id], play: true }) });
     knownDevice = phone.id; lastPlayOk = Date.now();
     return true;
@@ -1202,6 +1209,25 @@ function syncRepeat() {
 // Spotify counts as awake if a check saw it playing in the last 30 seconds, or a song was started from here in the last minute.
 function spotifyAwake() { return (lastPoll.active && Date.now() - lastPoll.at < 30000) || (Date.now() - lastPlayOk < 60000 && !!knownDevice); }
 let playSeq = 0, knownDevice = null, lastPlayOk = 0;
+// Spotify can say "OK" to a song and then sit paused with no song loaded (seen in the details log).
+// Check shortly after, send the song once more, and if it still isn't playing, say so plainly.
+async function verifyPlaying(it, u, devId, body, seq) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await sleep(1800);
+    if (seq !== playSeq) return;
+    let p = null; try { p = await spApi("/me/player"); } catch {}
+    if (seq !== playSeq) return;
+    if (p?.is_playing && p.item) return; // playing with a song loaded
+    if (attempt === 0) {
+      logSp(`${it.name}: Spotify said OK but isn't playing. Sending again.`);
+      try { await spApi("/me/player/play" + (devId ? "?device_id=" + encodeURIComponent(devId) : ""), { method: "PUT", body: JSON.stringify(body) }); } catch { break; }
+    }
+  }
+  if (seq !== playSeq) return;
+  hold = null; lastPlayOk = 0; lastPoll.active = false;
+  showWake(it, `Spotify accepted ${it.name}'s song but didn't play it. Tap Open Spotify to play it there. If it never plays, the song may not be available in your country.`);
+  pollPlayer();
+}
 async function playOnSpotify(it, isRetry) {
   const seq = ++playSeq;
   render();
@@ -1247,6 +1273,7 @@ async function playOnSpotify(it, isRetry) {
     const upNext = state.items.find((x) => x.id === state.queue[0]);
     toast(upNext ? `Playing ${it.name}'s song. ${upNext.name} is up next` : `Playing ${it.name}'s song on repeat`);
     setTimeout(pollPlayer, 600);
+    verifyPlaying(it, u, devId, body, seq);
   } catch (e) {
     if (seq !== playSeq) return;
     if (!sp.connected()) { toast("Spotify signed out. Tap Connect Spotify again."); pollPlayer(); return; }
@@ -1267,7 +1294,13 @@ document.addEventListener("visibilitychange", () => {
       let p = null; try { p = await spApi("/me/player"); } catch {}
       if (u && p?.is_playing && p.item?.uri === u.uri) {
         // The Spotify app sends songs to whatever device it's connected to (like a Mac). Pull it back to this phone.
-        if (!isHere(p.device)) { const ok = await moveToPhone(); if (!ok) { playOnSpotify(it, true); return; } }
+        if (!isHere(p.device)) {
+          const ok = await moveToPhone();
+          if (!ok) { showWake(it, `Spotify on your phone is set to play on ${p.device?.name || "another device"}. In Spotify, tap the devices icon and choose This iPhone, then tap the character again.`); pollPlayer(); return; }
+          await sleep(1200);
+          let q = null; try { q = await spApi("/me/player"); } catch {}
+          if (!q?.is_playing) { showWake(it, "The song moved to this iPhone but iPhone won't let Spotify start in the background. Tap Open Spotify and press ▶ once."); pollPlayer(); return; }
+        }
         hold = { playing: true, until: Date.now() + 6000, uri: u.uri };
         curUri = u.uri; nearEnd = false;
         setRepeat(repeatFor(u), p.device?.id).catch(() => {});
