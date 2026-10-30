@@ -578,6 +578,72 @@
       "photo": "photos/black-cat-mvuf6hvh.jpg",
       "order": 46,
       "createdAt": 1793331346849
+    },
+    {
+      "id": "jack-skellington-47",
+      "name": "Jack Skellington",
+      "songName": "This Is Halloween",
+      "spotify": "https://open.spotify.com/track/1a9PceTCXvQilDDwhoCflL",
+      "tags": [
+        "movies",
+        "disney",
+        "classic"
+      ],
+      "photo": "",
+      "order": 47,
+      "createdAt": 1793331466568
+    },
+    {
+      "id": "dorothy-48",
+      "name": "Dorothy",
+      "songName": "Over the Rainbow",
+      "spotify": "https://open.spotify.com/track/4n55qz1yZQGCeXU6P1Ee2I",
+      "tags": [
+        "movies",
+        "classic"
+      ],
+      "photo": "",
+      "order": 48,
+      "createdAt": 1793331466569
+    },
+    {
+      "id": "fireman-49",
+      "name": "Fireman",
+      "songName": "Fireman Sam Theme",
+      "spotify": "https://open.spotify.com/track/5c8avkEPunHcCzAadHTe1K",
+      "tags": [
+        "tv",
+        "classic"
+      ],
+      "photo": "",
+      "order": 49,
+      "createdAt": 1793331466570
+    },
+    {
+      "id": "bumblebee-50",
+      "name": "Bumblebee",
+      "songName": "Flight of the Bumblebee",
+      "spotify": "https://open.spotify.com/track/592RL0tL3mGqwbZPLOP4Fg",
+      "tags": [
+        "classic"
+      ],
+      "photo": "",
+      "order": 50,
+      "createdAt": 1793331466571
+    },
+    {
+      "id": "doctor-51",
+      "name": "Doctor",
+      "songName": "Doc McStuffins Theme Song",
+      "spotify": "https://open.spotify.com/track/4Fo9Kh6aTfiX1KX2G3G3rO",
+      "tags": [
+        "tv",
+        "disney",
+        "classic"
+      ],
+      "photo": "",
+      "order": 51,
+      "createdAt": 1793331466572
     }
   ]
 }
