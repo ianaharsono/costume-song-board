@@ -734,14 +734,12 @@
     {
       "id": "pirate-59",
       "name": "Pirate",
-      "songName": "He's a Pirate",
-      "spotify": "https://open.spotify.com/track/5vVFc7xUVJHslsPoS912S3",
+      "songName": "Yo, Ho!",
+      "spotify": "https://open.spotify.com/track/35zjgo7EZJ84SgBSKD7TQT",
       "tags": [
-        "movies",
-        "disney",
         "classic"
       ],
-      "photo": "",
+      "photo": "photos/pirate-mvvf6h69.jpg",
       "order": 59,
       "createdAt": 1793332663012
     },
