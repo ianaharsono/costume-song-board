@@ -912,12 +912,11 @@
       "id": "hermione-1a18db592b0",
       "name": "Hermione",
       "songName": "Harry's Wondrous World",
-      "spotify": "",
-      "spotifySearch": "Harry's Wondrous World John Williams",
+      "spotify": "https://open.spotify.com/track/5qWvQZewRB57giOKgvUE3F",
       "tags": [
         "movies"
       ],
-      "photo": "",
+      "photo": "photos/hermione-mvvelpw9.jpg",
       "order": 73,
       "createdAt": 1793378849456
     },
