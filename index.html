@@ -915,8 +915,9 @@ const sp = {
   clientId: "",
   tok: JSON.parse(lsGet("spTok") || "null"),
   connected() { return !!(this.clientId && this.tok?.refresh_token); },
-  save(t) { this.tok = t; lsSet("spTok", t ? JSON.stringify(t) : null); spButtons(); },
+  save(t) { this.tok = t; lsSet("spTok", t ? JSON.stringify(t) : null); if (t) lsSet("spEver", "1"); spButtons(); },
 };
+if (sp.tok?.refresh_token) lsSet("spEver", "1");
 // Spotify no longer tells apps which plan an account has, so an account counts as Premium until Spotify refuses a playback command for needing Premium.
 function spPremium() { return sp.connected() && sp.tok?.product !== "free"; }
 function spButtons() {
@@ -1202,6 +1203,12 @@ async function spInit() {
       catch { toast("Couldn't finish connecting Spotify. Try again."); }
     }
     lsSet("spVerifier", null); lsSet("spState", null);
+  } else if (sp.clientId && !sp.connected() && lsGet("spEver") && Date.now() - Number(lsGet("spAutoTried") || 0) > 120000) {
+    // This device connected before but lost its sign-in: reconnect quietly. Spotify sends you straight back
+    // without asking again while you're still logged in on Spotify's site. Tried at most once every 2 minutes.
+    lsSet("spAutoTried", String(Date.now()));
+    spLogin().catch(() => {});
+    return;
   }
   spButtons();
 }
@@ -1210,6 +1217,8 @@ $("qClose").addEventListener("click", () => $("queueDlg").close());
 $("qClear").addEventListener("click", () => { state.queue = []; saveQueue(); render(); syncRepeat(); });
 $("qPlayNext").addEventListener("click", () => { $("queueDlg").close(); playNext(); });
 $("plNext").addEventListener("click", () => playNext());
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+try { navigator.storage?.persist?.(); } catch {}
 start();
 </script>
 
